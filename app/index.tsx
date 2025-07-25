@@ -1,33 +1,15 @@
-import { useNavigation } from "@react-navigation/native";
+import { useFonts as useExpoFonts } from 'expo-font';
 import { SplashScreen, useRouter } from "expo-router";
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
-import React, { useState } from "react";
+import React from "react";
 import {
-    Alert,
     Image,
     StyleSheet,
     Text,
-    TouchableOpacity,
     View
 } from "react-native";
-import { Button, TextInput } from "react-native-paper";
+import { Button } from "react-native-paper";
 
 SplashScreen.preventAutoHideAsync();
-
-const firebaseConfig = {
-    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
-    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-    measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 
 const theme = {
     colors: {
@@ -38,97 +20,59 @@ const theme = {
     },
 };
 
-const LoginScreen = () => {
+function useFonts(fontMap: { [key: string]: any }): [boolean] {
+    const [loaded] = useExpoFonts(fontMap);
+    return [loaded];
+}
+
+const MainScreen = () => {
     const router = useRouter();
-    const navigation = useNavigation();
-    const [email, setEmail] = useState({ value: "", error: "" });
-    const [password, setPassword] = useState({ value: "", error: "" });
-    const [loading, setLoading] = useState(false);
+    const [Loading, setLoading] = React.useState(false);
+    const [fontsLoaded] = useFonts({
+        'Lufga': require('../assets/fonts/LufgaRegular.ttf'), 
+        'Magesta': require('../assets/fonts/Magesta.ttf'),
+    });
 
-    const onLoginPressed = async () => {
-        if (!email.value) {
-            setEmail({ ...email, error: "Email is required" });
-            return;
+    React.useEffect(() => {
+        if (fontsLoaded) {
+            SplashScreen.hideAsync();
         }
-        if (!password.value) {
-            setPassword({ ...password, error: "Password is required" });
-            return;
-        }
+    }, [fontsLoaded]);
 
+    if (!fontsLoaded) {
+        return null;
+    }
+
+    const onButtonPress = async () => {
         setLoading(true);
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
-            const user = userCredential.user;
-            Alert.alert("Login Successful", `Welcome back, ${user.email}!`);
-            router.push("/main_page");
-        } catch (error) {
-            const errorMessage = (error as Error).message;
-            Alert.alert("Login Failed", errorMessage);
+            router.push("/Login");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <View style={[styles.background, { backgroundColor: '#FFE6F2' }]}>
-            <View style={styles.overlay}>
-          <View style={styles.card}>
-              <Image
-            /* source={require("../assets/images/Logo.png")} */
-            style={styles.logo}
-            resizeMode="contain"
-              />
-
-              <Text style={styles.header}>Welcome Back!</Text>
-              <TextInput
-            style={styles.input}
-            label="Email"
-            value={email.value}
-            onChangeText={(text) => setEmail({ value: text, error: "" })}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="Email"
-            error={!!email.error}
-              />
-              {email.error ? <Text style={styles.errorText}>{email.error}</Text> : null}
-
-              <TextInput
-            style={styles.input}
-            label="Password"
-            value={password.value}
-            onChangeText={(text) => setPassword({ value: text, error: "" })}
-            secureTextEntry
-            placeholder="Password"
-            error={!!password.error}
-              />
-              {password.error ? <Text style={styles.errorText}>{password.error}</Text> : null}
-
-              <View style={styles.forgotPassword}>
-            <TouchableOpacity
-                onPress={() => navigation.navigate("ResetPasswordScreen")}
-            >
-                <Text style={styles.forgot}>Forgot your password?</Text>
-            </TouchableOpacity>
-              </View>
-
-              <Button
-            mode="contained"
-            onPress={onLoginPressed}
-            loading={loading}
-            disabled={loading}
-            style={styles.button}
-            contentStyle={{ backgroundColor: theme.colors.primary }}
-              >
-            {loading ? "Logging In..." : "Next"}
-              </Button>
-
-              <View style={styles.row}>
-            <Text>You do not have an account yet? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
-                <Text style={styles.link}>Create!</Text>
-            </TouchableOpacity>
-              </View>
-          </View>
+        <View style={styles.background}>
+            <View style={[styles.overlay, { backgroundColor: theme.colors.backgroundOverlay }]}>
+                <View style={styles.card}>
+                    <Text style={styles.header}>SafeRoute</Text>
+                    <Image source={require('../assets/images/Painting.png')} style={styles.logo} />
+                    <Text style={[styles.description, { textAlign: 'center', marginBottom: 30, color: '#666' }]}>
+                        Navigate confidently with Vote based optimized paths, emergency contacts, and 
+                        secure route planning designed for women's safety.
+                    </Text>
+                    <Button
+                        mode="contained"
+                        onPress={onButtonPress}
+                        loading={Loading}
+                        disabled={Loading}
+                        style={[styles.button, { backgroundColor: theme.colors.primary }]}
+                        labelStyle={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}
+                    >
+                        Get Started
+                    </Button>
+                </View>
             </View>
         </View>
     );
@@ -159,46 +103,30 @@ const styles = StyleSheet.create({
     },
     logo: {
         width: 200,
-        height: 150,
-        marginBottom: 16,
+        height: 200,
+        marginBottom: 20,
     },
     header: {
+        fontFamily: 'Magesta',
         fontSize: 24,
         color: theme.colors.primary,
         fontWeight: "bold",
-        marginBottom: 16,
+        margin: 24,
     },
-    input: {
-        width: "100%",
-        marginBottom: 10,
-        backgroundColor: theme.colors.backgroundOverlay,
+    subHeader: {
+        fontFamily: 'Lufga',
+        fontSize: 18,
+        fontWeight: "500",
     },
-    forgotPassword: {
-        width: "100%",
-        alignItems: "flex-end",
-        marginBottom: 10,
-    },
-    row: {
-        flexDirection: "row",
-        marginTop: 10,
-    },
-    forgot: {
-        fontSize: 13,
-    },
-    link: {
-        fontWeight: "bold",
-        color: theme.colors.primary,
+    description: {
+        fontFamily: 'Lufga',
+        fontSize: 14,
+        lineHeight: 20,
     },
     button: {
         marginTop: 10,
         width: "100%",
-        color: theme.colors.primary,
-    },
-    errorText: {
-        color: "red",
-        fontSize: 12,
-        marginBottom: 5,
     },
 });
 
-export default LoginScreen;
+export default MainScreen;

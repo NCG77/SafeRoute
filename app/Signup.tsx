@@ -14,7 +14,7 @@ import { Button, TextInput } from "react-native-paper";
 import 'react-native-reanimated';
 
 const firebaseConfig = {
-    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    /* apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
     authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
     databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
     projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
@@ -22,6 +22,7 @@ const firebaseConfig = {
     messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
     measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
+ */
 };
 
 const app = initializeApp(firebaseConfig);
@@ -70,7 +71,7 @@ const SignupScreen: React.FC = () => {
                 "Account Created",
                 `Welcome, ${name.value}! Your account has been created successfully.`
             );
-            navigation.navigate("index"); 
+            navigation.navigate("Login"); 
         } catch (error) {
             Alert.alert("Sign-Up Failed", (error as any).message);
         } finally {
@@ -83,7 +84,7 @@ const SignupScreen: React.FC = () => {
             <View style={styles.overlay}>
                 <View style={styles.card}>
                     <Image
-                        /* source={require("../assets/images/Logo.png")} */
+                        source={require("../assets/images/Verify.png")}
                         style={styles.logo}
                         resizeMode="contain"
                     />
@@ -137,7 +138,7 @@ const SignupScreen: React.FC = () => {
 
                     <View style={styles.row}>
                         <Text>I already have an account! </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate("index")}>
+                        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
                             <Text style={styles.link}>Log in</Text>
                         </TouchableOpacity>
                     </View>

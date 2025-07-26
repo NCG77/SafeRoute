@@ -25,12 +25,12 @@ function useFonts(fontMap: { [key: string]: any }): [boolean] {
     return [loaded];
 }
 
-const MainScreen = () => {
+const HomePage = () => {
     const router = useRouter();
     const [Loading, setLoading] = React.useState(false);
     const [fontsLoaded] = useFonts({
-        'Lufga': require('../assets/fonts/LufgaRegular.ttf'), 
-        'Magesta': require('../assets/fonts/Magesta.ttf'),
+        'Lufga': require('../../assets/fonts/LufgaRegular.ttf'), 
+        'Magesta': require('../../assets/fonts/Magesta.ttf'),
     });
 
     React.useEffect(() => {
@@ -57,10 +57,9 @@ const MainScreen = () => {
             <View style={[styles.overlay, { backgroundColor: theme.colors.backgroundOverlay }]}>
                 <View style={styles.card}>
                     <Text style={styles.header}>SafeRoute</Text>
-                    <Image source={require('../assets/images/Painting.png')} style={styles.logo} />
+                    <Image source={require('../../assets/images/Painting.png')} style={styles.logo} />
                     <Text style={[styles.description, { textAlign: 'center', marginBottom: 30, color: '#666' }]}>
-                        Navigate confidently with Vote based optimized paths, emergency contacts, and 
-                        secure route planning designed for women's safety.
+                        Contacts
                     </Text>
                     <Button
                         mode="contained"
@@ -90,7 +89,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     card: {
-        backgroundColor: "#FFFFFF",
+        backgroundColor: theme.colors.cardBackground,
         padding: 20,
         borderRadius: 12,
         width: "80%",
@@ -109,7 +108,7 @@ const styles = StyleSheet.create({
     header: {
         fontFamily: 'Magesta',
         fontSize: 24,
-        color: "#f661abff",
+        color: theme.colors.primary,
         fontWeight: "bold",
         margin: 24,
     },
@@ -129,4 +128,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default MainScreen;
+export default HomePage;

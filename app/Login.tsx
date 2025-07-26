@@ -60,7 +60,7 @@ const LoginScreen = () => {
             const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
             const user = userCredential.user;
             Alert.alert("Login Successful", `Welcome back, ${user.email}!`);
-            router.push("/main_page");
+            router.push("/Home");
         } catch (error) {
             const errorMessage = (error as Error).message;
             Alert.alert("Login Failed", errorMessage);

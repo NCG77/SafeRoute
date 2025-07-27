@@ -46,7 +46,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "googleDirectionsApiKey": "AIzaSyB6Ve71LA21-geZ_tIU6FATqRx6umEuBCA"
+      "googleDirectionsApiKey": "AIzaSyB6Ve71LA21-geZ_tIU6FATqRx6umEuBCA",
+      "googlePlacesApiKey": "AIzaSyB6Ve71LA21-geZ_tIU6FATqRx6umEuBCA"
     }
   }
 }

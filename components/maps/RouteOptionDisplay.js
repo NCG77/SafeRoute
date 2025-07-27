@@ -1,4 +1,5 @@
-// components/RouteOptionsDisplay.js
+// components/maps/RouteOptionsDisplay.js
+import React from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -20,6 +21,7 @@ import SafetyToggle from "./SafetyToggle"; // Import the new toggle component
  * - onSelectRoute: Function to call when a route option is selected.
  * - onViewDirections: Function to call to view detailed directions.
  * - onStartNavigation: Function to start navigation with the selected route.
+ * - onRecalculateRoute: Function to trigger re-calculation of the current route. (NEW)
  * - safeRouteOnly: Boolean indicating if safe route preference is active.
  * - onToggleSafeRouteOnly: Function to toggle the safe route preference.
  */
@@ -30,9 +32,13 @@ const RouteOptionsDisplay = ({
   onSelectRoute,
   onViewDirections,
   onStartNavigation,
+  onRecalculateRoute, // NEW PROP
   safeRouteOnly,
   onToggleSafeRouteOnly,
 }) => {
+  // Debugging log for visibility
+  console.log("RouteOptionsDisplay - isVisible:", isVisible);
+
   if (!isVisible || routeOptions.length === 0) return null;
 
   const currentRoute = routeOptions[selectedRouteIndex];
@@ -122,6 +128,16 @@ const RouteOptionsDisplay = ({
           </TouchableOpacity>
         </View>
       )}
+
+      {/* NEW: Recalculate Route Button */}
+      {onRecalculateRoute && (
+        <TouchableOpacity
+          style={styles.recalculateButton}
+          onPress={onRecalculateRoute}
+        >
+          <Text style={styles.recalculateButtonText}>Recalculate Route</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -129,7 +145,7 @@ const RouteOptionsDisplay = ({
 const styles = StyleSheet.create({
   routeOptionsContainer: {
     position: "absolute",
-    bottom: 0,
+    bottom: 70,
     left: 0,
     right: 0,
     backgroundColor: "white",
@@ -226,6 +242,21 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   startNavigationText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  recalculateButton: {
+    // NEW STYLE
+    backgroundColor: GlobalStyles.colors.info, // Blue color
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 10,
+    width: "100%", // Full width
+  },
+  recalculateButtonText: {
+    // NEW STYLE
     color: "white",
     fontSize: 16,
     fontWeight: "bold",

@@ -35,6 +35,11 @@ const BottomSheet = ({
     showBottomSheet,
     selectedLocation,
   });
+  console.log("BottomSheet - showBottomSheet type:", typeof showBottomSheet);
+  console.log("BottomSheet - selectedLocation value:", selectedLocation);
+  // --- End Debugging Tip ---
+
+  // Ensure both showBottomSheet is true and selectedLocation is not null/undefined
   if (showBottomSheet !== true || !selectedLocation) {
     console.log(
       "BottomSheet - Hiding: showBottomSheet is not true or selectedLocation is null/undefined."
@@ -98,7 +103,7 @@ const BottomSheet = ({
 const styles = StyleSheet.create({
   bottomSheet: {
     position: "absolute",
-    bottom: 70,
+    bottom: 60,
     left: 0,
     right: 0,
     backgroundColor: "white",

@@ -30,23 +30,6 @@ const BottomSheet = ({
   onStartNavigation,
   onClose,
 }) => {
-  // --- Debugging Tip: Uncomment the lines below to inspect props ---
-  console.log("BottomSheet received props:", {
-    showBottomSheet,
-    selectedLocation,
-  });
-  console.log("BottomSheet - showBottomSheet type:", typeof showBottomSheet);
-  console.log("BottomSheet - selectedLocation value:", selectedLocation);
-  // --- End Debugging Tip ---
-
-  // Ensure both showBottomSheet is true and selectedLocation is not null/undefined
-  if (showBottomSheet !== true || !selectedLocation) {
-    console.log(
-      "BottomSheet - Hiding: showBottomSheet is not true or selectedLocation is null/undefined."
-    );
-    return null;
-  }
-
   return (
     <Animated.View
       style={[

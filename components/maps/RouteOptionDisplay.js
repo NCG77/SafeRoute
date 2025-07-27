@@ -36,9 +36,6 @@ const RouteOptionsDisplay = ({
   safeRouteOnly,
   onToggleSafeRouteOnly,
 }) => {
-  // Debugging log for visibility
-  console.log("RouteOptionsDisplay - isVisible:", isVisible);
-
   if (!isVisible || routeOptions.length === 0) return null;
 
   const currentRoute = routeOptions[selectedRouteIndex];

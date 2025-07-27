@@ -1,7 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import { SplashScreen, useRouter } from "expo-router";
-import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import React, { useState } from "react";
 import {
   Alert,
@@ -12,22 +11,9 @@ import {
   View,
 } from "react-native";
 import { Button, TextInput } from "react-native-paper";
+import { auth } from "../config/firebase";
 
 SplashScreen.preventAutoHideAsync();
-
-const firebaseConfig = {
-  /* apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
-    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-    measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID, */
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 
 const theme = {
   colors: {
@@ -111,13 +97,13 @@ const LoginScreen = () => {
             <Text style={styles.errorText}>{password.error}</Text>
           ) : null}
 
-          <View style={styles.forgotPassword}>
+          {/* <View style={styles.forgotPassword}>
             <TouchableOpacity
-              onPress={() => navigation.navigate("ResetPasswordScreen")}
+              onPress={() => router.push("/ResetPasswordScreen")}
             >
               <Text style={styles.forgot}>Forgot your password?</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
           <Button
             mode="contained"
@@ -132,7 +118,7 @@ const LoginScreen = () => {
 
           <View style={styles.row}>
             <Text>You do not have an account yet? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+            <TouchableOpacity onPress={() => router.push("/Signup")}>
               <Text style={styles.link}>Create!</Text>
             </TouchableOpacity>
           </View>

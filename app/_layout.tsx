@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from "expo-router";
 import { useEffect } from "react";
+import { Provider as PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from "react-native-safe-area-context";
 SplashScreen.preventAutoHideAsync();
 
@@ -24,15 +25,17 @@ export default function RootLayout() {
     console.log('Color Scheme:', colorScheme); 
 
     return (
-        <SafeAreaProvider>
-            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-                    <Stack>
-                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                        <Stack.Screen name="index" options={{ headerShown: false }} />
-                        <Stack.Screen name="Login" options={{ headerShown: false }} />
-                        <Stack.Screen name="Signup" options={{ headerShown: false }} />
-                    </Stack>
-            </ThemeProvider>
-        </SafeAreaProvider>
+        <PaperProvider>
+            <SafeAreaProvider>
+                <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                        <Stack>
+                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                            <Stack.Screen name="index" options={{ headerShown: false }} />
+                            <Stack.Screen name="Login" options={{ headerShown: false }} />
+                            <Stack.Screen name="Signup" options={{ headerShown: false }} />
+                        </Stack>
+                </ThemeProvider>
+            </SafeAreaProvider>
+        </PaperProvider>
     );
 }

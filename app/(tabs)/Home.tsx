@@ -136,7 +136,7 @@ const HomePage = () => {
                         <View style={styles.buttonRow}>
                             <Button
                                 mode="contained"
-                                onPress={onButtonPress}
+                                onPress={() => router.push("/contacts")}
                                 loading={Loading}
                                 disabled={Loading}
                                 style={[styles.buttonUpper]}
@@ -152,7 +152,7 @@ const HomePage = () => {
                                 style={[styles.buttonUpper]}
                                 labelStyle={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}
                             >
-                                Something
+                                Share Location
                             </Button>
                         </View>
                     </View>

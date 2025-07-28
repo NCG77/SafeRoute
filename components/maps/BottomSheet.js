@@ -30,18 +30,6 @@ const BottomSheet = ({
   onStartNavigation,
   onClose,
 }) => {
-  // --- Debugging Tip: Uncomment the lines below to inspect props ---
-  console.log("BottomSheet received props:", {
-    showBottomSheet,
-    selectedLocation,
-  });
-  if (showBottomSheet !== true || !selectedLocation) {
-    console.log(
-      "BottomSheet - Hiding: showBottomSheet is not true or selectedLocation is null/undefined."
-    );
-    return null;
-  }
-
   return (
     <Animated.View
       style={[
@@ -98,7 +86,7 @@ const BottomSheet = ({
 const styles = StyleSheet.create({
   bottomSheet: {
     position: "absolute",
-    bottom: 70,
+    bottom: 60,
     left: 0,
     right: 0,
     backgroundColor: "white",

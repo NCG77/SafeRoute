@@ -12,15 +12,14 @@ type Contact = {
 
 const CONTACTS_STORAGE_KEY = '@SafeRoute:contacts';
 
-// Simple ID generator for React Native without crypto dependency
 const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 };
 
 const theme = {
   colors: {
-    primary: '#f661ab', // Pink
-    secondary: '#cd43d2', // Purple
+    primary: '#f661ab',
+    secondary: '#cd43d2',
     backgroundOverlay: '#f5f5f5',
     cardBackground: '#fff',
     text: '#fff',
@@ -72,7 +71,7 @@ export default function ContactsScreen() {
       return;
     }
 
-    const phoneDigits = phone.replace(/\D/g, ''); // Remove all non-digit characters
+    const phoneDigits = phone.replace(/\D/g, '');
     const isValidPhone = /^\d{10}$/.test(phoneDigits);
     
     if (!isValidPhone) {
@@ -83,7 +82,7 @@ export default function ContactsScreen() {
     const newContact: Contact = {
       id: generateId(),
       name: name.trim(),
-      phone: phoneDigits, // Save only digits
+      phone: phoneDigits,
     };
 
     const updatedContacts = [...contacts, newContact];
@@ -120,22 +119,17 @@ export default function ContactsScreen() {
     if (!contactIdToDelete.current) return;
 
     try {
-      // Get current contacts from state
       const updatedContacts = contacts.filter(
         contact => contact.id !== contactIdToDelete.current
       );
       
-      // Update state
       setContacts(updatedContacts);
       
-      // Save to storage
       await AsyncStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(updatedContacts));
       
-      // Reset state
       contactIdToDelete.current = null;
       setDialogVisible(false);
       
-      // Show success message
       Alert.alert('Success', 'Contact deleted successfully');
     } catch (error) {
       console.error('Failed to delete contact', error);
@@ -207,7 +201,6 @@ export default function ContactsScreen() {
             placeholder="+91 Phone Number"
             value={phone}
             onChangeText={(text) => {
-              // Only allow numbers and format as user types
               const formatted = text.replace(/\D/g, '');
               setPhone(formatted);
             }}

@@ -1,10 +1,5 @@
-// components/maps/MapDisplay.web.js
 import { StyleSheet, Text, View } from 'react-native';
 
-/**
- * Web-compatible MapDisplay Component
- * Displays a placeholder message for web platforms since react-native-maps is not supported on web
- */
 const MapDisplay = (props) => {
   return (
     <View style={styles.container}>

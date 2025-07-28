@@ -1,50 +1,43 @@
-// SafeMaps.js (Main Application Component - formerly App.js)
 import Constants from "expo-constants";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  SafeAreaView,
-  StatusBar,
-  Text,
+    Alert,
+    Animated,
+    Dimensions,
+    SafeAreaView,
+    StatusBar,
+    Text,
 } from "react-native";
 
-// Import custom components - Adjusted paths based on your provided structure
 import BottomSheet from "../../components/maps/BottomSheet";
 import DirectionsModal from "../../components/maps/DirectionModal";
-// import EmergencyButton from "../../components/maps/EmergencyButton"; // Removed: EmergencyButton import
 import LoadingOverlay from "../../components/maps/LoadingOverlay";
-import LongPressInstruction from "../../components/maps/LongPressInstruction"; // NEW: Import instruction component
+import LongPressInstruction from "../../components/maps/LongPressInstruction";
 import MapDisplay from "../../components/maps/MapDisplay";
 import NavigationHeader from "../../components/maps/NavigationHeader";
 import RouteOptionsDisplay from "../../components/maps/RouteOptionDisplay";
 import SafetyReviewModal from "../../components/maps/SafetyReviewModal";
 import SearchBar from "../../components/maps/SearchBar";
 
-// Global styles for consistency
 import { GlobalStyles } from "../../constants/GlobalStyles";
 
 const { width, height } = Dimensions.get("window");
 
 const SafeMaps = () => {
-  // State for location and map
   const [location, setLocation] = useState(null);
-  const [mapRegion, setMapRegion] = useState(null); // To control map's visible region
+  const [mapRegion, setMapRegion] = useState(null);
   const mapRef = useRef(null);
-  const [currentRegionName, setCurrentRegionName] = useState(null); // Stores current city/region name (kept for potential future use)
+  const [currentRegionName, setCurrentRegionName] = useState(null);
 
-  // State for search functionality
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState(null); // Selected search result/destination
+  const [selectedLocation, setSelectedLocation] = useState(null);
 
-  // State for routes and navigation
   const [routeCoordinates, setRouteCoordinates] = useState([]);
-  const [routeInfo, setRouteInfo] = useState(null); // Currently displayed route's info
-  const [routeOptions, setRouteOptions] = useState([]); // Multiple route options
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [routeOptions, setRouteOptions] = useState([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [isNavigationMode, setIsNavigationMode] = useState(false); // True when actual navigation starts
@@ -62,23 +55,19 @@ const SafeMaps = () => {
   const [showLongPressInstruction, setShowLongPressInstruction] =
     useState(false);
 
-  // Animation for bottom sheet
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
-  const [showBottomSheet, setShowBottomSheet] = useState(false); // State to control bottom sheet visibility
+  const [showBottomSheet, setShowBottomSheet] = useState(false);
 
-  // Define Google Places API Key
   const GOOGLE_PLACES_API_KEY =
     Constants.expoConfig?.extra?.googlePlacesApiKey ||
-    Constants.expoConfig?.android?.config?.googleMaps?.apiKey || // Fallback for Android
-    Constants.expoConfig?.ios?.config?.googleMapsApiKey; // Fallback for iOS
+    Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
+    Constants.expoConfig?.ios?.config?.googleMapsApiKey;
 
-  // --- Effects ---
   useEffect(() => {
     getCurrentLocation();
     loadSafetyData();
   }, []);
 
-  // Effect to update map region when location changes and show instruction
   useEffect(() => {
     if (location) {
       setMapRegion({
@@ -870,13 +859,12 @@ const SafeMaps = () => {
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <SafeAreaView style={GlobalStyles.container}>
-        {/* Search Bar */}
         <SearchBar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           searchResults={searchResults}
           showSearchResults={showSearchResults}
-          onSearch={searchPlaces} // This now calls the Google Places API search
+          onSearch={searchPlaces}
           onSelectResult={selectSearchResult}
           onClearSearch={() => {
             setSearchQuery("");

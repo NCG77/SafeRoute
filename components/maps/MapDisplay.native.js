@@ -1,10 +1,9 @@
-// components/MapDisplay.js
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, {
-  Circle,
-  Marker,
-  Polyline,
-  PROVIDER_GOOGLE,
+    Circle,
+    Marker,
+    Polyline,
+    PROVIDER_GOOGLE,
 } from "react-native-maps";
 import { GlobalStyles } from "../../constants/GlobalStyles";
 

@@ -12,10 +12,8 @@ import {
   Text,
 } from "react-native";
 
-// Import custom components - Adjusted paths based on your provided structure
 import BottomSheet from "../../components/maps/BottomSheet";
 import DirectionsModal from "../../components/maps/DirectionModal";
-// import EmergencyButton from "../../components/maps/EmergencyButton"; // Removed: EmergencyButton import
 import LoadingOverlay from "../../components/maps/LoadingOverlay";
 import LongPressInstruction from "../../components/maps/LongPressInstruction";
 import MapDisplay from "../../components/maps/MapDisplay";
@@ -25,10 +23,45 @@ import RouteOptionsDisplay from "../../components/maps/RouteOptionDisplay";
 import SafetyReviewModal from "../../components/maps/SafetyReviewModal";
 import SearchBar from "../../components/maps/SearchBar";
 
-// Global styles for consistency
 import { GlobalStyles } from "../../constants/GlobalStyles";
 
 const { width, height } = Dimensions.get("window");
+
+interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
+
+interface SearchResult {
+  id: string;
+  title: string;
+  coordinate: Coordinate;
+  subtitle: string;
+}
+
+interface SafetyReview {
+  id: number;
+  latitude: number;
+  longitude: number;
+  rating: number;
+  comment: string;
+  category: string;
+  timestamp: number;
+  userId: string;
+}
+
+interface DangerousArea {
+  latitude: number;
+  longitude: number;
+  radius: number;
+  severity: number;
+}
+
+interface RouteInfo {
+  distance: number;
+  duration: number;
+  safety: any;
+}
 
 const SafeMaps = () => {
   // Get route parameters
@@ -44,26 +77,26 @@ const SafeMaps = () => {
 
   // State for search functionality
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState(null); // Selected search result/destination
+  const [selectedLocation, setSelectedLocation] = useState<SearchResult | null>(
+    null
+  );
 
-  // State for routes and navigation
-  const [routeCoordinates, setRouteCoordinates] = useState([]);
-  const [routeInfo, setRouteInfo] = useState(null); // Currently displayed route's info
-  const [routeOptions, setRouteOptions] = useState([]); // Multiple route options
+  const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
+  const [routeOptions, setRouteOptions] = useState<any[]>([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
-  const [isNavigationMode, setIsNavigationMode] = useState(false); // True when actual navigation starts
-  const [directions, setDirections] = useState([]);
+  const [isNavigationMode, setIsNavigationMode] = useState(false);
+  const [directions, setDirections] = useState<any[]>([]);
   const [showDirectionsModal, setShowDirectionsModal] = useState(false);
 
-  // State for safety features
-  const [safetyReviews, setSafetyReviews] = useState([]);
-  const [dangerousAreas, setDangerousAreas] = useState([]);
-  const [safeRouteOnly, setSafeRouteOnly] = useState(true); // User preference for safe routes
+  const [safetyReviews, setSafetyReviews] = useState<SafetyReview[]>([]);
+  const [dangerousAreas, setDangerousAreas] = useState<DangerousArea[]>([]);
+  const [safeRouteOnly, setSafeRouteOnly] = useState(true);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewLocation, setReviewLocation] = useState(null); // Location for new review
+  const [reviewLocation, setReviewLocation] = useState(null);
 
   // State for long press instruction visibility
   const [showLongPressInstruction, setShowLongPressInstruction] =
@@ -80,21 +113,19 @@ const SafeMaps = () => {
 
   // Animation for bottom sheet
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
-  const [showBottomSheet, setShowBottomSheet] = useState(false); // State to control bottom sheet visibility
+  const [showBottomSheet, setShowBottomSheet] = useState(false);
 
-  // Define Google Places API Key
   const GOOGLE_PLACES_API_KEY =
+    process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ||
     Constants.expoConfig?.extra?.googlePlacesApiKey ||
-    Constants.expoConfig?.android?.config?.googleMaps?.apiKey || // Fallback for Android
-    Constants.expoConfig?.ios?.config?.googleMapsApiKey; // Fallback for iOS
+    Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
+    Constants.expoConfig?.ios?.config?.googleMapsApiKey;
 
-  // --- Effects ---
   useEffect(() => {
     getCurrentLocation();
     loadSafetyData();
   }, []);
 
-  // Effect to update map region when location changes and show instruction
   useEffect(() => {
     if (location) {
       setMapRegion({
@@ -103,13 +134,12 @@ const SafeMaps = () => {
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
       });
-      // Show instruction after map is ready, hide after a delay
       const timer = setTimeout(() => {
         setShowLongPressInstruction(true);
-      }, 2000); // Show after 2 seconds
+      }, 2000);
       const hideTimer = setTimeout(() => {
         setShowLongPressInstruction(false);
-      }, 8000); // Hide after 8 seconds
+      }, 8000);
       return () => {
         clearTimeout(timer);
         clearTimeout(hideTimer);
@@ -169,16 +199,15 @@ const SafeMaps = () => {
       });
       setLocation(currentLocation);
 
-      // Reverse geocode to get current city/region name (still useful for display or future features)
       const reverseGeocode = await Location.reverseGeocodeAsync(
         currentLocation.coords
       );
       if (reverseGeocode && reverseGeocode.length > 0) {
-        const { city, administrativeArea } = reverseGeocode[0];
+        const { city, region } = reverseGeocode[0];
         if (city) {
           setCurrentRegionName(city);
-        } else if (administrativeArea) {
-          setCurrentRegionName(administrativeArea); // Fallback to state/province
+        } else if (region) {
+          setCurrentRegionName(region);
         }
       }
     } catch (error) {
@@ -186,11 +215,7 @@ const SafeMaps = () => {
     }
   };
 
-  /**
-   * Loads mock safety review data. In a real app, this would fetch from a database.
-   */
   const loadSafetyData = () => {
-    // Mock data for demonstration purposes
     const mockReviews = [
       {
         id: 1,
@@ -252,13 +277,11 @@ const SafeMaps = () => {
         timestamp: Date.now() - 604800000,
         userId: "user6",
       },
-      // Adding a new mock dangerous review near the Ibrahimganj area (Bhopal)
-      // Adjust these coordinates based on where your test route actually passes through
       {
         id: 7,
-        latitude: 23.2681, // Close to the coordinate in your screenshot
-        longitude: 77.4049, // Close to the coordinate in your screenshot
-        rating: 1, // Very unsafe
+        latitude: 23.2681,
+        longitude: 77.4049,
+        rating: 1,
         comment: "Test: Extremely dangerous area, avoid at all costs!",
         category: "crime",
         timestamp: Date.now(),
@@ -266,9 +289,9 @@ const SafeMaps = () => {
       },
       {
         id: 8,
-        latitude: 23.275, // Another point near Bhopal, slightly different
+        latitude: 23.275,
         longitude: 77.415,
-        rating: 2, // Unsafe
+        rating: 2,
         comment: "Test: Caution advised, poor visibility at night.",
         category: "lighting",
         timestamp: Date.now(),
@@ -278,29 +301,26 @@ const SafeMaps = () => {
 
     setSafetyReviews(mockReviews);
 
-    // Identify dangerous areas (rating <= 2) based on mock reviews
     const dangerous = mockReviews
       .filter((review) => review.rating <= 2)
       .map((review) => ({
         latitude: review.latitude,
         longitude: review.longitude,
-        radius: 500, // 500 meters radius for dangerous areas
+        radius: 500,
         severity: review.rating,
       }));
 
     setDangerousAreas(dangerous);
   };
 
-  /**
-   * Submits a new safety review. In a real app, this would send data to a backend.
-   * @param {number} latitude
-   * @param {number} longitude
-   * @param {number} rating
-   * @param {string} comment
-   * @param {string} category
-   */
   const submitSafetyReview = useCallback(
-    (latitude, longitude, rating, comment, category) => {
+    (
+      latitude: number,
+      longitude: number,
+      rating: number,
+      comment: string,
+      category: string
+    ) => {
       const newReview = {
         id: Date.now(),
         latitude,
@@ -337,12 +357,7 @@ const SafeMaps = () => {
 
   // --- Search Functionality ---
 
-  /**
-   * Searches for places using Google Places API (Text Search).
-   * Prioritizes results near the current location.
-   * @param {string} query
-   */
-  const searchPlaces = async (query) => {
+  const searchPlaces = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
       setShowSearchResults(false);
@@ -383,7 +398,7 @@ const SafeMaps = () => {
       if (data.status === "OK") {
         const formattedResults = data.results
           .slice(0, 5)
-          .map((place, index) => ({
+          .map((place: any, index: number) => ({
             id: place.place_id, // Use place_id for unique identification
             title: place.name,
             subtitle:
@@ -400,7 +415,7 @@ const SafeMaps = () => {
         setShowSearchResults(true);
       } else if (data.status === "ZERO_RESULTS") {
         setSearchResults([]);
-        setShowSearchResults(true); // Show empty results
+        setShowSearchResults(true);
       } else {
         console.error(
           "Google Places API error:",
@@ -421,15 +436,11 @@ const SafeMaps = () => {
     }
   };
 
-  /**
-   * Handles selection of a search result.
-   * @param {object} result
-   */
-  const selectSearchResult = (result) => {
+  const selectSearchResult = (result: SearchResult) => {
     setSearchQuery(result.title);
     setShowSearchResults(false);
     setSelectedLocation(result);
-    animateBottomSheet(true); // Show bottom sheet
+    animateBottomSheet(true);
     mapRef.current?.animateToRegion({
       latitude: result.coordinate.latitude,
       longitude: result.coordinate.longitude,
@@ -438,31 +449,18 @@ const SafeMaps = () => {
     });
   };
 
-  // --- Bottom Sheet Animation ---
-
-  /**
-   * Animates the bottom sheet in or out.
-   * @param {boolean} show
-   */
-  const animateBottomSheet = (show) => {
+  const animateBottomSheet = (show: boolean) => {
     Animated.timing(bottomSheetAnim, {
       toValue: show ? 1 : 0,
       duration: 300,
-      useNativeDriver: false, // Set to true if not animating layout properties
+      useNativeDriver: false,
     }).start(() => {
-      if (!show) setShowBottomSheet(false); // Hide after animation completes
+      if (!show) setShowBottomSheet(false);
     });
-    if (show) setShowBottomSheet(true); // Show immediately
+    if (show) setShowBottomSheet(true);
   };
 
-  // --- Route Calculation and Safety Analysis ---
-
-  /**
-   * Decodes an encoded polyline string into an array of coordinates.
-   * @param {string} encoded
-   * @returns {Array<object>} Array of {latitude, longitude} objects.
-   */
-  const decodePolyline = (encoded) => {
+  const decodePolyline = (encoded: string): Coordinate[] => {
     const coordinates = [];
     let index = 0;
     let lat = 0;
@@ -501,9 +499,12 @@ const SafeMaps = () => {
    * @param {object} destination - {latitude, longitude}
    * @returns {number} Distance in kilometers.
    */
-  const calculateDistance = (origin, destination) => {
+  const calculateDistance = (
+    origin: Coordinate,
+    destination: Coordinate
+  ): number => {
     const R = 6371; // Earth's radius in km
-    const deg2rad = (deg) => deg * (Math.PI / 180);
+    const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
     const dLat = deg2rad(destination.latitude - origin.latitude);
     const dLon = deg2rad(destination.longitude - origin.longitude);
@@ -525,7 +526,7 @@ const SafeMaps = () => {
    * @returns {object} {score, status, reviews}
    */
   const getAreaSafetyScore = useCallback(
-    (latitude, longitude, radius = 500) => {
+    (latitude: number, longitude: number, radius = 500) => {
       // Increased radius to 500m
       const nearbyReviews = safetyReviews.filter((review) => {
         const distance = calculateDistance(
@@ -558,7 +559,7 @@ const SafeMaps = () => {
    * @returns {object} Overall safety status, danger percentage, and segment-wise safety.
    */
   const analyzeRouteSafety = useCallback(
-    (coordinates) => {
+    (coordinates: Coordinate[]) => {
       let totalDangerousSegments = 0;
       let totalSafeSegments = 0;
       let totalUnreviewedSegments = 0;
@@ -617,18 +618,16 @@ const SafeMaps = () => {
    * @param {string} safetyStatus - 'dangerous', 'caution', 'safe', 'unreviewed'
    * @returns {string} Hex color code.
    */
-  const getSafetyColor = (safetyStatus) => {
+  const getSafetyColor = (safetyStatus: string): string => {
     switch (safetyStatus) {
       case "dangerous":
-        return GlobalStyles.colors.danger; // Red
+        return "#FF4444";
       case "caution":
-        return GlobalStyles.colors.warning; // Orange
+        return "#FFA500";
       case "safe":
-        return GlobalStyles.colors.success; // Green
-      case "unreviewed":
-        return GlobalStyles.colors.info; // Blue
+        return "#4CAF50";
       default:
-        return GlobalStyles.colors.info;
+        return "#2196F3";
     }
   };
 
@@ -639,8 +638,12 @@ const SafeMaps = () => {
    * @param {object} destination - {latitude, longitude}
    * @returns {Array<object>} Sorted array of route objects with safety analysis.
    */
-  const getMultipleGoogleRoutes = async (origin, destination) => {
+  const getMultipleGoogleRoutes = async (
+    origin: Coordinate,
+    destination: Coordinate
+  ) => {
     const API_KEY =
+      process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY ||
       Constants.expoConfig?.extra?.googleDirectionsApiKey ||
       Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
       Constants.expoConfig?.ios?.config?.googleMapsApiKey;
@@ -685,7 +688,7 @@ const SafeMaps = () => {
     const processedRoutes = allGoogleRoutes.map((route, index) => {
       const leg = route.legs[0];
       const coordinates = decodePolyline(route.overview_polyline.points);
-      const directions = leg.steps.map((step) => ({
+      const directions = leg.steps.map((step: any) => ({
         instruction: step.html_instructions.replace(/<[^>]*>/g, ""),
         distance: step.distance.text,
         duration: step.duration.text,
@@ -702,7 +705,7 @@ const SafeMaps = () => {
     });
 
     // Remove duplicate routes based on proximity of distance and duration
-    const uniqueRoutes = [];
+    const uniqueRoutes: any[] = [];
     for (const route of processedRoutes) {
       const isDuplicate = uniqueRoutes.some((existing) => {
         const distanceDiff = Math.abs(existing.distance - route.distance);
@@ -733,8 +736,8 @@ const SafeMaps = () => {
         caution: 2,
         dangerous: 1,
       };
-      const aSafety = safetyPriority[a.safety.overall];
-      const bSafety = safetyPriority[b.safety.overall];
+      const aSafety = (safetyPriority as any)[a.safety.overall];
+      const bSafety = (safetyPriority as any)[b.safety.overall];
 
       if (aSafety !== bSafety) return bSafety - aSafety; // Prioritize higher safety score
       return a.duration - b.duration; // Then prioritize shorter duration
@@ -1012,19 +1015,21 @@ const SafeMaps = () => {
     setNearestPlaceDetails(null); // Clear nearest place details on stop navigation
     setShowNearestPlaceModal(false); // Ensure modal is closed
     // Optionally, reset map to current location
-    mapRef.current?.animateToRegion({
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      latitudeDelta: 0.0922,
-      longitudeDelta: 0.0421,
-    });
+    if (location && selectedLocation) {
+      mapRef.current?.animateToRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+    }
   };
 
   /**
    * Selects a different route option from the available list.
    * @param {number} routeIndex
    */
-  const selectRouteOption = (routeIndex) => {
+  const selectRouteOption = (routeIndex: number) => {
     const newSelectedRoute = routeOptions[routeIndex];
     if (!newSelectedRoute) return;
 
@@ -1064,12 +1069,12 @@ const SafeMaps = () => {
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <SafeAreaView style={GlobalStyles.container}>
-        {/* Search Bar */}
         <SearchBar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           searchResults={searchResults}
           showSearchResults={showSearchResults}
+          onSearch={searchPlaces}
           onSearch={searchPlaces}
           onSelectResult={selectSearchResult}
           onClearSearch={() => {
@@ -1086,8 +1091,8 @@ const SafeMaps = () => {
           safetyReviews={safetyReviews}
           dangerousAreas={dangerousAreas}
           routeCoordinates={routeCoordinates}
-          routeColor={routeInfo?.color || GlobalStyles.colors.primary}
-          onLongPress={(event) => {
+          routeColor="#2196F3"
+          onLongPress={(event: any) => {
             setReviewLocation(event.nativeEvent.coordinate);
             setShowReviewModal(true);
             setShowLongPressInstruction(false); // Hide instruction on long press

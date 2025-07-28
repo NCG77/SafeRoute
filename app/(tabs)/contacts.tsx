@@ -12,18 +12,17 @@ type Contact = {
 
 const CONTACTS_STORAGE_KEY = '@SafeRoute:contacts';
 
-// Simple ID generator for React Native without crypto dependency
 const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 };
 
 const theme = {
   colors: {
-    primary: '#f661ab', // Pink
-    secondary: '#cd43d2', // Purple
+    primary: '#f661ab',
+    secondary: '#cd43d2',
     backgroundOverlay: '#f5f5f5',
     cardBackground: '#fff',
-    text: '#333',
+    text: '#fff',
     border: '#ddd',
     danger: '#ff4444',
   },
@@ -41,7 +40,6 @@ export default function ContactsScreen() {
   const [dialogVisible, setDialogVisible] = React.useState(false);
   const contactIdToDelete = React.useRef<string | null>(null);
 
-  // Load contacts on mount
   React.useEffect(() => {
     loadContacts();
   }, []);
@@ -73,10 +71,18 @@ export default function ContactsScreen() {
       return;
     }
 
+    const phoneDigits = phone.replace(/\D/g, '');
+    const isValidPhone = /^\d{10}$/.test(phoneDigits);
+    
+    if (!isValidPhone) {
+      Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+
     const newContact: Contact = {
       id: generateId(),
       name: name.trim(),
-      phone: phone.trim(),
+      phone: phoneDigits,
     };
 
     const updatedContacts = [...contacts, newContact];
@@ -89,9 +95,15 @@ export default function ContactsScreen() {
   const handleEdit = () => {
     if (!editingId || !name.trim() || !phone.trim()) return;
 
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+
     const updatedContacts = contacts.map(contact =>
       contact.id === editingId
-        ? { ...contact, name: name.trim(), phone: phone.trim() }
+        ? { ...contact, name: name.trim(), phone: phoneDigits }
         : contact
     );
 
@@ -103,19 +115,27 @@ export default function ContactsScreen() {
     setDialogVisible(false);
   };
 
-  const performDelete = React.useCallback(() => {
+  const performDelete = React.useCallback(async () => {
     if (!contactIdToDelete.current) return;
 
-    setContacts(currentContacts => {
-      const updatedContacts = currentContacts.filter(
+    try {
+      const updatedContacts = contacts.filter(
         contact => contact.id !== contactIdToDelete.current
       );
-      saveContacts(updatedContacts);
-      return updatedContacts;
-    });
-
-    contactIdToDelete.current = null;
-  }, [saveContacts]);
+      
+      setContacts(updatedContacts);
+      
+      await AsyncStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(updatedContacts));
+      
+      contactIdToDelete.current = null;
+      setDialogVisible(false);
+      
+      Alert.alert('Success', 'Contact deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete contact', error);
+      Alert.alert('Error', 'Failed to delete contact');
+    }
+  }, [contacts]);
 
   const handleDelete = (id: string) => {
     contactIdToDelete.current = id;
@@ -123,14 +143,29 @@ export default function ContactsScreen() {
       'Delete Contact',
       'Are you sure you want to delete this contact?',
       [
-        { text: 'Cancel', style: 'cancel', onPress: () => (contactIdToDelete.current = null) },
+        { 
+          text: 'Cancel', 
+          style: 'cancel', 
+          onPress: () => {
+            contactIdToDelete.current = null;
+          }
+        },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: performDelete,
+          onPress: () => {
+            if (contactIdToDelete.current) {
+              performDelete();
+            }
+          },
         },
       ],
-      { cancelable: true, onDismiss: () => (contactIdToDelete.current = null) }
+      { 
+        cancelable: true, 
+        onDismiss: () => {
+          contactIdToDelete.current = null;
+        } 
+      }
     );
   };
 
@@ -147,7 +182,7 @@ export default function ContactsScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.colors.primary, fontFamily: theme.font }]}>Emergency Contacts</Text>
           <Text style={[styles.subtitle, { color: theme.colors.secondary, fontFamily: theme.font }]}>Save important contacts for quick access</Text>
@@ -159,15 +194,19 @@ export default function ContactsScreen() {
             placeholder="Contact Name"
             value={name}
             onChangeText={setName}
-            placeholderTextColor="#999"
+            placeholderTextColor={theme.colors.secondary}
           />
           <TextInput
             style={[styles.input, { fontFamily: theme.font }]}
-            placeholder="Phone Number"
+            placeholder="+91 Phone Number"
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(text) => {
+              const formatted = text.replace(/\D/g, '');
+              setPhone(formatted);
+            }}
             keyboardType="phone-pad"
-            placeholderTextColor="#999"
+            placeholderTextColor={theme.colors.secondary}
+            maxLength={10}
           />
           <Button
             mode="contained"
@@ -182,10 +221,10 @@ export default function ContactsScreen() {
         <View style={styles.contactsList}>
           {contacts.length > 0 ? (
             contacts.map((contact) => (
-              <Card key={contact.id} style={[styles.contactCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.secondary }] }>
+              <Card key={contact.id} style={[styles.contactCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.secondary }]}>
                 <Card.Content>
-                  <Text style={[styles.contactName, { color: theme.colors.primary, fontFamily: theme.font }]}>{contact.name}</Text>
-                  <Text style={[styles.contactPhone, { color: theme.colors.secondary, fontFamily: theme.font }]}>{contact.phone}</Text>
+                  <Text style={[styles.contactName, { color: theme.colors.primary, fontFamily: theme.font }]}>Name: {contact.name}</Text>
+                  <Text style={[styles.contactPhone, { color: theme.colors.secondary, fontFamily: theme.font }]}>Number: +91 {contact.phone}</Text>
                 </Card.Content>
                 <Card.Actions style={styles.cardActions}>
                   <IconButton
@@ -200,17 +239,11 @@ export default function ContactsScreen() {
                     onPress={() => startEditing(contact)}
                     iconColor={theme.colors.secondary}
                   />
-                  <IconButton
-                    icon="delete"
-                    size={24}
-                    onPress={() => handleDelete(contact.id)}
-                    iconColor={theme.colors.danger}
-                  />
                 </Card.Actions>
               </Card>
             ))
           ) : (
-            <Text style={[styles.noContacts, { fontFamily: theme.font }]}>No contacts saved yet</Text>
+            <Text style={[styles.noContacts, { fontFamily: theme.font, color: theme.colors.secondary }]}>No contacts saved yet</Text>
           )}
         </View>
       </ScrollView>
@@ -225,6 +258,7 @@ export default function ContactsScreen() {
               value={name}
               onChangeText={setName}
               autoFocus
+              placeholderTextColor={theme.colors.secondary}
             />
             <TextInput
               style={[styles.dialogInput, { fontFamily: theme.font }]}
@@ -232,6 +266,7 @@ export default function ContactsScreen() {
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
+              placeholderTextColor={theme.colors.secondary}
             />
           </Dialog.Content>
           <Dialog.Actions>
@@ -247,15 +282,24 @@ export default function ContactsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
+    paddingTop: 48,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.secondary,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 16,
+  },
+  scrollContent: {
+    paddingBottom: 32,
   },
   header: {
     marginBottom: 24,
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.secondary,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -274,12 +318,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     elevation: 3,
-    shadowColor: '#f661ab',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     borderWidth: 1.5,
-    borderColor: '#f661ab',
+    borderColor: theme.colors.primary,
   },
   input: {
     backgroundColor: '#f9f6fb',
@@ -288,7 +328,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     fontSize: 17,
     borderWidth: 1,
-    borderColor: '#cd43d2',
+    borderColor: theme.colors.secondary,
+    color: theme.colors.secondary,
   },
   addButton: {
     marginTop: 8,
@@ -309,20 +350,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     elevation: 2,
-    shadowColor: '#cd43d2',
+    shadowColor: theme.colors.secondary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
   },
   contactName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 2,
+    marginBottom: 4,
     letterSpacing: 0.1,
   },
   contactPhone: {
     fontSize: 16,
-    marginBottom: 2,
     letterSpacing: 0.1,
   },
   cardActions: {
@@ -330,7 +370,6 @@ const styles = StyleSheet.create({
   },
   noContacts: {
     textAlign: 'center',
-    color: '#999',
     marginTop: 24,
     fontSize: 16,
   },
@@ -341,6 +380,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     fontSize: 17,
     borderWidth: 1,
-    borderColor: '#cd43d2',
+    borderColor: theme.colors.secondary,
+    color: theme.colors.secondary,
   },
 });

@@ -14,7 +14,7 @@
     "android": {
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyB6Ve71LA21-geZ_tIU6FATqRx6umEuBCA"
+          "apiKey": "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
         }
       },
       "adaptiveIcon": {
@@ -46,8 +46,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "googleDirectionsApiKey": "AIzaSyB6Ve71LA21-geZ_tIU6FATqRx6umEuBCA",
-      "googlePlacesApiKey": "AIzaSyB6Ve71LA21-geZ_tIU6FATqRx6umEuBCA"
+      "googleDirectionsApiKey": "$EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY",
+      "googlePlacesApiKey": "$EXPO_PUBLIC_GOOGLE_PLACES_API_KEY"
     }
   }
 }

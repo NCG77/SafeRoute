@@ -217,85 +217,120 @@ const SafeMaps = () => {
 
   const loadSafetyData = () => {
     const mockReviews = [
+      // Safe Areas in Bhopal (Rating 4-5)
       {
         id: 1,
-        latitude: 28.6139,
-        longitude: 77.209,
-        rating: 2,
-        comment: "Poor lighting at night, avoid after dark",
-        category: "lighting",
-        timestamp: Date.now() - 86400000,
-        userId: "user1",
+        latitude: 23.2548, // Near Upper Lake (Bada Talab) - Boat Club area
+        longitude: 77.3995,
+        rating: 5,
+        comment:
+          "Well-lit and popular area for walks. Feels very safe due to crowds.",
+        category: "general",
+        timestamp: Date.now() - 86400000 * 5, // 5 days ago
+        userId: "bhopal_user1",
       },
       {
         id: 2,
-        latitude: 28.6129,
-        longitude: 77.208,
-        rating: 1,
-        comment: "Frequent harassment reports, very unsafe area",
-        category: "harassment",
-        timestamp: Date.now() - 172800000,
-        userId: "user2",
+        latitude: 23.2595, // Near DB City Mall / Zone-I
+        longitude: 77.4126,
+        rating: 4,
+        comment:
+          "Busy commercial hub with good security. Safe during day and evening.",
+        category: "security",
+        timestamp: Date.now() - 86400000 * 3, // 3 days ago
+        userId: "bhopal_user2",
       },
       {
         id: 3,
-        latitude: 28.6149,
-        longitude: 77.21,
-        rating: 5,
-        comment: "Well-lit, lots of people, feels very safe",
+        latitude: 23.245, // Near New Market
+        longitude: 77.404,
+        rating: 4,
+        comment:
+          "Crowded market area, active police patrolling. Safe for shopping.",
         category: "general",
-        timestamp: Date.now() - 259200000,
-        userId: "user3",
+        timestamp: Date.now() - 86400000 * 7, // 7 days ago
+        userId: "bhopal_user3",
       },
       {
         id: 4,
-        latitude: 28.6159,
-        longitude: 77.211,
-        rating: 4,
-        comment: "Good area with security cameras",
+        latitude: 23.27, // Near Van Vihar National Park entrance
+        longitude: 77.375,
+        rating: 5,
+        comment:
+          "Protected national park area. Very safe during operational hours. Good for nature walks.",
         category: "security",
-        timestamp: Date.now() - 345600000,
-        userId: "user4",
+        timestamp: Date.now() - 86400000 * 2, // 2 days ago
+        userId: "bhopal_user4",
       },
       {
         id: 5,
-        latitude: 28.6165,
-        longitude: 77.2075,
-        rating: 1,
-        comment: "Narrow street, often deserted, feels risky.",
+        latitude: 23.22, // Near Shahpura Lake
+        longitude: 77.435,
+        rating: 4,
+        comment:
+          "Nice lakeside area, well-maintained. Feels safe with families around.",
         category: "general",
-        timestamp: Date.now() - 518400000,
-        userId: "user5",
+        timestamp: Date.now() - 86400000 * 4, // 4 days ago
+        userId: "bhopal_user5",
       },
+
+      // Caution Areas in Bhopal (Rating 3)
       {
         id: 6,
-        latitude: 28.6105,
-        longitude: 77.212,
-        rating: 5,
-        comment: "Police patrol frequently, very safe.",
-        category: "security",
-        timestamp: Date.now() - 604800000,
-        userId: "user6",
+        latitude: 23.235, // Near Habibganj Railway Station / ISBT area
+        longitude: 77.43,
+        rating: 3,
+        comment:
+          "Busy transport hub. Can be crowded and chaotic. Exercise caution at night.",
+        category: "crowd",
+        timestamp: Date.now() - 86400000 * 1, // 1 day ago
+        userId: "bhopal_user6",
       },
       {
         id: 7,
-        latitude: 23.2681,
+        latitude: 23.2681, // Ibrahimganj - based on your previous testing
         longitude: 77.4049,
-        rating: 1,
-        comment: "Test: Extremely dangerous area, avoid at all costs!",
-        category: "crime",
-        timestamp: Date.now(),
-        userId: "test_user_dangerous",
+        rating: 3,
+        comment:
+          "Narrow streets, some areas lack proper lighting. Mixed reviews.",
+        category: "lighting",
+        timestamp: Date.now() - 86400000 * 6, // 6 days ago
+        userId: "bhopal_user7",
       },
+
+      // Dangerous Areas in Bhopal (Rating 1-2)
       {
         id: 8,
-        latitude: 23.275,
+        latitude: 23.265, // Example of a less populated street/alley (hypothetical)
+        longitude: 77.408,
+        rating: 2,
+        comment:
+          "Very poor lighting and often deserted after 9 PM. Felt unsafe walking alone.",
+        category: "lighting",
+        timestamp: Date.now() - 86400000 * 0.5, // 12 hours ago
+        userId: "bhopal_user8",
+      },
+      {
+        id: 9,
+        latitude: 23.24, // Another hypothetical isolated spot
+        longitude: 77.39,
+        rating: 1,
+        comment:
+          "Frequent reports of petty crime and harassment. Highly unsafe, avoid this route.",
+        category: "crime",
+        timestamp: Date.now() - 86400000 * 1.5, // 1.5 days ago
+        userId: "bhopal_user9",
+      },
+      {
+        id: 10,
+        latitude: 23.275, // Near a less maintained area (hypothetical)
         longitude: 77.415,
         rating: 2,
-        comment: "Test: Caution advised, poor visibility at night.",
-        category: "lighting",
-        timestamp: Date.now(),
-        userId: "test_user_caution",
+        comment:
+          "Broken pavements and overgrown bushes make it feel unsafe, especially at night.",
+        category: "infrastructure",
+        timestamp: Date.now() - 86400000 * 2.5, // 2.5 days ago
+        userId: "bhopal_user10",
       },
     ];
 
@@ -1074,7 +1109,6 @@ const SafeMaps = () => {
           setSearchQuery={setSearchQuery}
           searchResults={searchResults}
           showSearchResults={showSearchResults}
-          onSearch={searchPlaces}
           onSearch={searchPlaces}
           onSelectResult={selectSearchResult}
           onClearSearch={() => {

@@ -1,9 +1,13 @@
 // LiveLocationShareScreen.js
-import AsyncStorage from "@react-native-async-storage/async-storage"; // NEW: Import AsyncStorage
-import { useNavigation, useRoute } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native"; // Added useFocusEffect
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react"; // Added useCallback
 import {
   Alert,
   Platform,
@@ -13,143 +17,367 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from "react-native";
+} from "react-native"; // Added AppState
+
+// Firebase Imports
+import { getApps, initializeApp } from "firebase/app"; // MODIFIED: Added getApps
+import { getAuth, onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import { doc, getFirestore, setDoc } from "firebase/firestore";
 
 // Assuming GlobalStyles is in ../constants/GlobalStyles
-import { GlobalStyles } from "../../constants/GlobalStyles";
+import { GlobalStyles } from "../constants/GlobalStyles";
 
 // Define a unique name for your background location task
 const LOCATION_TRACKING_TASK = "location-tracking-task";
-const CONTACTS_STORAGE_KEY = "@SafeRoute:contacts"; // Same key as ContactsScreen
+const CONTACTS_STORAGE_KEY = "@SafeRoute:contacts";
+const IS_SHARING_STORAGE_KEY = "@SafeRoute:isSharing"; // NEW: Key to store sharing status
 
 type Contact = {
-  // Define Contact type for clarity
   id: string;
   name: string;
   phone: string;
 };
 
-// Register the background task (must be outside the component)
-// This is where the actual live location data would be sent to your backend.
-TaskManager.defineTask(LOCATION_TRACKING_TASK, async ({ data, error }) => {
-  if (error) {
-    console.error("Background location task error:", error);
-    return;
+// Initialize Firebase App (outside component to avoid re-initialization)
+// Note: This relies on your App.js (or root setup) also initializing Firebase
+// using the same firebaseConfig for getApps() to pick it up correctly.
+// A more robust pattern in large apps might be to pass the initialized 'app' instance around.
+let firebaseApp;
+let db;
+let auth;
+let currentFirebaseUserId: string | null = null; // Global variable to hold user ID for background task
+
+// Try to get the already initialized app, or initialize it if it's the first time (e.g. for background task itself)
+// This is critical for background tasks where the main app might not be fully loaded.
+if (getApps().length === 0) {
+  // Attempt to load firebaseConfig from process.env for background task context
+  const backgroundFirebaseConfig = {
+    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  };
+  if (backgroundFirebaseConfig.apiKey) {
+    // Basic check if config is present
+    firebaseApp = initializeApp(backgroundFirebaseConfig);
+    db = getFirestore(firebaseApp);
+    auth = getAuth(firebaseApp);
+    console.log("Firebase initialized in background context.");
+  } else {
+    console.error(
+      "Firebase config not found in process.env for background task."
+    );
+    // Alert.alert("Firebase Config Missing", "Firebase environment variables are not set. Live location sharing will not work."); // Cannot alert in global scope
   }
-  if (data) {
-    const { locations } = data;
-    const latestLocation = locations[0];
-    if (latestLocation) {
-      // Retrieve options passed when starting the task
-      const taskOptions = TaskManager.getTaskOptions();
-      const sharingWithContacts =
-        (taskOptions.sharingWithContacts as Contact[]) || [];
-      const isGeneralShare = taskOptions.isGeneralShare || false;
+} else {
+  firebaseApp = getApps()[0];
+  db = getFirestore(firebaseApp);
+  auth = getAuth(firebaseApp);
+  console.log("Firebase accessed from existing app instance.");
+}
 
-      // In a real app, you would send this to your backend (e.g., Firestore)
-      // The backend would then handle pushing this location to the specific contacts.
-      console.log("Background Location Update:", {
-        latitude: latestLocation.coords.latitude,
-        longitude: latestLocation.coords.longitude,
-        timestamp: latestLocation.timestamp,
-        sharedWith: isGeneralShare
-          ? "All emergency contacts"
-          : sharingWithContacts.map((c) => c.name).join(", "),
-        contactIds: sharingWithContacts.map((c) => c.id), // IDs of contacts to share with
-      });
+// Listen for auth state changes globally to update currentFirebaseUserId
+if (auth) {
+  // Only attach listener if auth is initialized
+  auth.onAuthStateChanged((user) => {
+    if (user) {
+      currentFirebaseUserId = user.uid;
+      console.log(
+        "Firebase Auth State Changed (Global Task Scope): User is",
+        user.uid
+      );
+    } else {
+      currentFirebaseUserId = null;
+      console.log(
+        "Firebase Auth State Changed (Global Task Scope): User is signed out."
+      );
+    }
+  });
+} else {
+  console.error("Firebase auth not initialized in task scope.");
+}
 
-      // Example of what you'd do with Firestore (conceptual):
-      /*
-      import { getFirestore, doc, setDoc } from 'firebase/firestore';
-      import { getAuth } from 'firebase/auth'; // Assuming Firebase Auth is set up
+// Register the background task
+TaskManager.defineTask(
+  LOCATION_TRACKING_TASK,
+  async ({ data, error, executionInfo }) => {
+    if (error) {
+      console.error("Background location task error:", error);
+      return;
+    }
+    if (data) {
+      const { locations } = data;
+      const latestLocation = locations[0];
+      if (latestLocation) {
+        const taskOptions = executionInfo?.taskOptions;
+        const sharingWithContacts =
+          (taskOptions?.sharingWithContacts as Contact[]) || [];
+        const isGeneralShare = taskOptions?.isGeneralShare || false;
+        const userId = taskOptions?.userId;
 
-      const db = getFirestore(firebaseApp); // firebaseApp initialized elsewhere
-      const auth = getAuth(firebaseApp);
-      const userId = auth.currentUser?.uid;
+        if (db && userId) {
+          try {
+            const locationData = {
+              latitude: latestLocation.coords.latitude,
+              longitude: latestLocation.coords.longitude,
+              timestamp: latestLocation.timestamp,
+              accuracy: latestLocation.coords.accuracy,
+              speed: latestLocation.coords.speed,
+              heading: latestLocation.coords.heading,
+              sharingWith: sharingWithContacts.map((c) => ({
+                id: c.id,
+                name: c.name,
+                phone: c.phone,
+              })),
+              isGeneralShare: isGeneralShare,
+              serverTimestamp: new Date().toISOString(),
+            };
 
-      if (userId) {
-        // Update user's own live location document
-        await setDoc(doc(db, 'live_locations', userId), {
-          latitude: latestLocation.coords.latitude,
-          longitude: latestLocation.coords.longitude,
-          timestamp: latestLocation.timestamp,
-          sharingWith: sharingWithContacts.map(c => c.id), // Store IDs of contacts being shared with
-          isGeneralShare: isGeneralShare,
-        });
+            await setDoc(doc(db, "live_locations", userId), locationData, {
+              merge: true,
+            });
 
-        // Optionally, update a 'shared_locations' collection for each target contact
-        // This is more complex and depends on your backend architecture.
-        // For example, for each contact ID:
-        // await setDoc(doc(db, 'shared_locations', contactId), {
-        //   [userId]: { latitude: latestLocation.coords.latitude, longitude: latestLocation.coords.longitude, timestamp: latestLocation.timestamp }
-        // }, { merge: true });
+            console.log(
+              "Live location sent to Firestore for user:",
+              userId,
+              "Location:",
+              latestLocation.coords.latitude,
+              latestLocation.coords.longitude
+            );
+            console.log(
+              "Shared with:",
+              sharingWithContacts.map((c) => c.name).join(", ") || "General"
+            );
+          } catch (firestoreError) {
+            console.error(
+              "Failed to send location to Firestore:",
+              firestoreError
+            );
+          }
+        } else {
+          console.warn(
+            "Firestore DB or userId not available in background task. Location not sent. User ID:",
+            userId,
+            "DB:",
+            !!db
+          );
+        }
       }
-      */
     }
   }
-});
+);
 
 const LiveLocationShareScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { startSharing, targetContact } = route.params || {}; // Receive targetContact param
+  const { startSharing, targetContact } = route.params || {};
 
   const [isSharing, setIsSharing] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [statusMessage, setStatusMessage] = useState(
     "Ready to share location."
   );
-  const [sharedWithContacts, setSharedWithContacts] = useState<Contact[]>([]); // NEW: State to display shared contacts
-  const [allContacts, setAllContacts] = useState<Contact[]>([]); // NEW: State to hold all contacts from storage
+  const [sharedWithContacts, setSharedWithContacts] = useState<Contact[]>([]);
+  const [allContacts, setAllContacts] = useState<Contact[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [contactsLoaded, setContactsLoaded] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // Load all contacts from AsyncStorage on component mount
-  useEffect(() => {
-    const loadAllContacts = async () => {
-      try {
-        const savedContacts = await AsyncStorage.getItem(CONTACTS_STORAGE_KEY);
-        if (savedContacts) {
-          setAllContacts(JSON.parse(savedContacts));
+  // Function to load contacts from AsyncStorage
+  const loadContactsFromStorage = useCallback(async () => {
+    try {
+      const savedContacts = await AsyncStorage.getItem(CONTACTS_STORAGE_KEY);
+      if (savedContacts) {
+        const parsedContacts: Contact[] = JSON.parse(savedContacts);
+        setAllContacts(parsedContacts);
+        if (parsedContacts.length === 0) {
+          setStatusMessage("No emergency contacts added yet.");
         }
-      } catch (error) {
-        console.error(
-          "Failed to load all contacts for LiveLocationShareScreen",
-          error
-        );
+      } else {
+        setAllContacts([]);
+        setStatusMessage("No emergency contacts added yet.");
       }
-    };
-    loadAllContacts();
+    } catch (error) {
+      console.error(
+        "Failed to load all contacts for LiveLocationShareScreen",
+        error
+      );
+      setStatusMessage("Error loading contacts.");
+    } finally {
+      setContactsLoaded(true);
+    }
   }, []);
+
+  // Function to load sharing status from AsyncStorage
+  const loadSharingStatus = useCallback(async () => {
+    try {
+      const savedIsSharing = await AsyncStorage.getItem(IS_SHARING_STORAGE_KEY);
+      if (savedIsSharing === "true") {
+        const isTaskRunning = await TaskManager.isTaskRegisteredAsync(
+          LOCATION_TRACKING_TASK
+        );
+        if (isTaskRunning) {
+          setIsSharing(true);
+          setStatusMessage("Live location sharing is active in background.");
+          const currentLoc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          setCurrentLocation(currentLoc.coords);
+        } else {
+          setIsSharing(false);
+          await AsyncStorage.setItem(IS_SHARING_STORAGE_KEY, "false");
+          setStatusMessage("Ready to share location.");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load sharing status:", error);
+    }
+  }, []);
+
+  // Initial setup effect: Load contacts, check auth, load sharing status
+  useEffect(() => {
+    loadContactsFromStorage();
+    loadSharingStatus();
+
+    if (auth) {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user) {
+          setCurrentUserId(user.uid);
+          setStatusMessage("Authenticated. Ready to share location.");
+        } else {
+          setCurrentUserId(null);
+          setStatusMessage("Not authenticated. Please log in.");
+          signInAnonymously(auth)
+            .then((userCred) => {
+              setCurrentUserId(userCred.user.uid);
+              setStatusMessage(
+                "Authenticated anonymously. Ready to share location."
+              );
+            })
+            .catch((err) => console.error("Anonymous auth failed:", err));
+        }
+        setAuthChecked(true);
+      });
+      return () => unsubscribe();
+    } else {
+      setStatusMessage(
+        "Firebase Auth not initialized. Check your Firebase config."
+      );
+      setAuthChecked(true);
+    }
+  }, [loadContactsFromStorage, loadSharingStatus]);
 
   // Effect to handle initial sharing request from HomePage or ContactsScreen
   useEffect(() => {
-    if (startSharing) {
-      if (targetContact) {
-        // Sharing with a specific contact
-        setSharedWithContacts([targetContact]);
-        setStatusMessage(
-          `Sharing with ${targetContact.name} (${targetContact.phone})`
-        );
-      } else {
-        // Sharing with all emergency contacts (from HomePage button)
-        // This relies on allContacts being loaded by the previous useEffect
-        setSharedWithContacts(allContacts);
-        setStatusMessage("Sharing with all emergency contacts.");
-      }
-      handleStartSharing();
-      // Clear the param after use to prevent re-triggering if user navigates back
-      navigation.setParams({
-        startSharing: undefined,
-        targetContact: undefined,
-      });
-    }
-  }, [startSharing, targetContact, allContacts, navigation]); // Add allContacts to dependency array
+    const triggerInitialSharing = async () => {
+      if (startSharing && authChecked && contactsLoaded && currentUserId) {
+        const isLocationEnabled = await Location.hasServicesEnabledAsync();
+        if (!isLocationEnabled) {
+          Alert.alert(
+            "Location Services Disabled",
+            "Please enable location services on your device to share your live location."
+          );
+          setStatusMessage("Location services disabled.");
+          navigation.setParams({
+            startSharing: undefined,
+            targetContact: undefined,
+          });
+          return;
+        }
 
-  // Effect to clean up location watcher on unmount
+        if (targetContact) {
+          setSharedWithContacts([targetContact]);
+          setStatusMessage(
+            `Sharing with ${targetContact.name} (${targetContact.phone})`
+          );
+        } else {
+          setSharedWithContacts(allContacts);
+          setStatusMessage("Sharing with all emergency contacts.");
+        }
+        handleStartSharing();
+        navigation.setParams({
+          startSharing: undefined,
+          targetContact: undefined,
+        });
+      } else if (
+        startSharing &&
+        (!authChecked || !contactsLoaded || !currentUserId)
+      ) {
+        setStatusMessage("Initializing... Please wait to start sharing.");
+      }
+    };
+    triggerInitialSharing();
+  }, [
+    startSharing,
+    targetContact,
+    allContacts,
+    currentUserId,
+    authChecked,
+    contactsLoaded,
+    navigation,
+  ]);
+
+  // Effect to clean up location watcher on unmount (MODIFIED: Only stop if not sharing)
   useEffect(() => {
     return () => {
-      handleStopSharing(); // Ensure location tracking stops when component unmounts
+      // This effect runs when component unmounts. We only want to stop the task
+      // if the user explicitly turned it off, or if the app is truly closing.
+      // If isSharing is true, it means the user intends for it to continue in background.
+      if (isSharing) {
+        console.log(
+          "LiveLocationShareScreen unmounting, sharing is active. Task will continue."
+        );
+      } else {
+        // If sharing is already off, ensure task is stopped just in case
+        TaskManager.isTaskRegisteredAsync(LOCATION_TRACKING_TASK).then(
+          (isRegistered) => {
+            if (isRegistered) {
+              Location.stopLocationUpdatesAsync(LOCATION_TRACKING_TASK);
+              console.log(
+                "LiveLocationShareScreen unmounting, sharing was off. Task stopped."
+              );
+            }
+          }
+        );
+      }
     };
-  }, []);
+  }, [isSharing]); // Depend on isSharing state
+
+  // Use useFocusEffect to get current location for display when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      let intervalId: NodeJS.Timeout | null = null;
+      const getLiveLocationForDisplay = async () => {
+        if (isSharing) {
+          // Only fetch for display if sharing is active
+          try {
+            const currentLoc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+            setCurrentLocation(currentLoc.coords);
+          } catch (error) {
+            console.error("Error getting current location for display:", error);
+          }
+        }
+      };
+
+      // Fetch location immediately when screen is focused and sharing is active
+      getLiveLocationForDisplay();
+
+      // Set up interval to update location for display (not the background task)
+      if (isSharing) {
+        intervalId = setInterval(getLiveLocationForDisplay, 5000); // Update UI every 5 seconds
+      }
+
+      return () => {
+        if (intervalId) {
+          clearInterval(intervalId);
+        }
+      };
+    }, [isSharing])
+  );
 
   const requestPermissions = async () => {
     const { status: foregroundStatus } =
@@ -162,58 +390,88 @@ const LiveLocationShareScreen = () => {
       } else {
         Alert.alert(
           "Background Location Denied",
-          "Background location access is required for live sharing. Please enable it in your device settings."
+          "Background location access is required for live sharing. Please enable 'Always' location permission in your device settings."
         );
+        return false;
       }
     } else {
       Alert.alert(
         "Location Denied",
-        "Foreground location access is required. Please enable it in your device settings."
+        "Foreground location access is required. Please enable location permission in your device settings."
       );
+      return false;
     }
-    return false;
   };
 
   const handleStartSharing = async () => {
+    if (!currentUserId) {
+      Alert.alert(
+        "Authentication Required",
+        "Please log in or wait for authentication to complete before sharing."
+      );
+      return;
+    }
+    if (sharedWithContacts.length === 0 && allContacts.length === 0) {
+      // Check both sharedWith and allContacts
+      Alert.alert(
+        "No Contacts",
+        "Please add emergency contacts first to share your location."
+      );
+      return;
+    }
+
     const hasPermissions = await requestPermissions();
     if (!hasPermissions) {
       setStatusMessage("Permissions not granted. Cannot start sharing.");
       return;
     }
 
-    // Determine which contacts to share with based on current state
-    const contactsToShare =
-      sharedWithContacts.length > 0 ? sharedWithContacts : allContacts;
-    const isGeneralShare = !targetContact && contactsToShare.length > 0;
+    // Determine the actual contacts to share based on current state
+    const contactsToShare = route.params?.targetContact
+      ? [route.params.targetContact]
+      : allContacts;
+    const isGeneralShare =
+      !route.params?.targetContact && contactsToShare.length > 0;
 
-    // Check if task is already running
     const isTaskRunning = await TaskManager.isTaskRegisteredAsync(
       LOCATION_TRACKING_TASK
     );
     if (isTaskRunning) {
-      await Location.stopLocationUpdatesAsync(LOCATION_TRACKING_TASK);
+      setIsSharing(true);
+      setStatusMessage("Live location sharing already active.");
+      Alert.alert(
+        "Sharing Already Active",
+        "Your live location is already being shared."
+      );
+      // If already running, ensure UI reflects the correct sharedWithContacts
+      if (route.params?.targetContact) {
+        setSharedWithContacts([route.params.targetContact]);
+      } else {
+        setSharedWithContacts(allContacts);
+      }
+      return;
     }
 
     try {
-      // Start background location updates, passing contacts as task options
       await Location.startLocationUpdatesAsync(LOCATION_TRACKING_TASK, {
-        accuracy: Location.Accuracy.Balanced, // Adjust accuracy as needed
-        timeInterval: 10000, // Update every 10 seconds (in milliseconds)
-        distanceInterval: 10, // Update every 10 meters
-        deferredUpdatesInterval: 5000, // Defer updates for 5 seconds to save battery
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 10000,
+        distanceInterval: 10,
+        deferredUpdatesInterval: 5000,
         foregroundService: {
-          // Required for Android 8.0+ for persistent notification
           notificationTitle: "Live Location Sharing",
           notificationBody: "Your location is being shared for safety.",
           notificationColor: "#FF4444",
         },
-        // Pass contacts data to the background task
         taskOptions: {
           sharingWithContacts: contactsToShare,
           isGeneralShare: isGeneralShare,
+          userId: currentUserId,
         },
       });
       setIsSharing(true);
+      await AsyncStorage.setItem(IS_SHARING_STORAGE_KEY, "true"); // Persist sharing status
+
       if (contactsToShare.length > 0) {
         setStatusMessage(
           `Live location sharing active with: ${contactsToShare
@@ -234,16 +492,19 @@ const LiveLocationShareScreen = () => {
         );
       }
 
-      // Also get current location for immediate display
       const currentLoc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
       setCurrentLocation(currentLoc.coords);
     } catch (error) {
       console.error("Error starting location updates:", error);
-      Alert.alert("Error", "Failed to start live location sharing.");
+      Alert.alert(
+        "Error",
+        "Failed to start live location sharing. Check permissions and try again."
+      );
       setIsSharing(false);
       setStatusMessage("Failed to start sharing.");
+      await AsyncStorage.setItem(IS_SHARING_STORAGE_KEY, "false");
     }
   };
 
@@ -256,8 +517,9 @@ const LiveLocationShareScreen = () => {
         await Location.stopLocationUpdatesAsync(LOCATION_TRACKING_TASK);
       }
       setIsSharing(false);
+      await AsyncStorage.setItem(IS_SHARING_STORAGE_KEY, "false");
       setCurrentLocation(null);
-      setSharedWithContacts([]); // Clear shared contacts
+      setSharedWithContacts([]);
       setStatusMessage("Live location sharing stopped.");
       Alert.alert(
         "Sharing Stopped",
@@ -284,24 +546,38 @@ const LiveLocationShareScreen = () => {
 
       <View style={styles.content}>
         <Text style={styles.statusText}>{statusMessage}</Text>
-        {isSharing &&
-          sharedWithContacts.length > 0 && ( // Display shared contacts when sharing
-            <View style={styles.sharedWithContainer}>
-              <Text style={styles.sharedWithTextTitle}>Sharing with:</Text>
-              {sharedWithContacts.map((contact) => (
-                <Text key={contact.id} style={styles.sharedWithText}>
-                  • {contact.name} ({contact.phone})
-                </Text>
-              ))}
-            </View>
-          )}
-        {!isSharing && sharedWithContacts.length === 0 && (
+        {isSharing && sharedWithContacts.length > 0 && (
+          <View style={styles.sharedWithContainer}>
+            <Text style={styles.sharedWithTextTitle}>Sharing with:</Text>
+            {sharedWithContacts.map((contact) => (
+              <Text key={contact.id} style={styles.sharedWithText}>
+                • {contact.name} ({contact.phone})
+              </Text>
+            ))}
+          </View>
+        )}
+        {!isSharing && sharedWithContacts.length === 0 && contactsLoaded && (
           <Text style={styles.infoText}>
-            Tap "Start Sharing" to share with all saved emergency contacts, or
-            navigate from the Contacts screen to share with specific
-            individuals.
+            No emergency contacts added yet. Please add contacts from the
+            "Contacts" screen.
           </Text>
         )}
+        {!isSharing &&
+          sharedWithContacts.length > 0 &&
+          !route.params?.targetContact && (
+            <Text style={styles.infoText}>
+              Tap "Start Sharing" to share with all {sharedWithContacts.length}{" "}
+              saved emergency contacts.
+            </Text>
+          )}
+        {!isSharing &&
+          sharedWithContacts.length > 0 &&
+          route.params?.targetContact && (
+            <Text style={styles.infoText}>
+              Tap "Start Sharing" to share with{" "}
+              {route.params.targetContact.name}.
+            </Text>
+          )}
 
         {currentLocation && (
           <View style={styles.locationInfo}>
@@ -323,10 +599,10 @@ const LiveLocationShareScreen = () => {
             isSharing ? styles.stopButton : styles.startButton,
           ]}
           onPress={isSharing ? handleStopSharing : handleStartSharing}
-          // Note: Location.hasServicesEnabledAsync() is not a synchronous getter.
-          // It's an async function. For disabling, you'd need a state variable
-          // that tracks its result, or remove this prop if not critical.
-          // disabled={!Location.hasServicesEnabledAsync}
+          disabled={
+            !currentUserId ||
+            (sharedWithContacts.length === 0 && !isSharing && contactsLoaded)
+          }
         >
           <Text style={styles.shareButtonText}>
             {isSharing ? "Stop Sharing" : "Start Sharing"}
@@ -383,7 +659,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   sharedWithContainer: {
-    // NEW STYLE
     backgroundColor: "white",
     borderRadius: 10,
     padding: 15,
@@ -393,14 +668,12 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   sharedWithTextTitle: {
-    // NEW STYLE
     fontSize: 16,
     fontWeight: "bold",
     color: GlobalStyles.colors.textPrimary,
     marginBottom: 5,
   },
   sharedWithText: {
-    // NEW STYLE
     fontSize: 14,
     color: GlobalStyles.colors.textSecondary,
     marginBottom: 2,

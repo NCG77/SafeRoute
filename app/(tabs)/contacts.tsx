@@ -1,8 +1,17 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFonts } from 'expo-font';
-import * as React from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Button, Card, Dialog, IconButton, Portal } from 'react-native-paper';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native"; // Ensure useNavigation is imported
+import { useFonts } from "expo-font";
+import * as React from "react";
+import {
+  Alert,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Button, Card, Dialog, IconButton, Portal } from "react-native-paper";
 
 type Contact = {
   id: string;
@@ -10,7 +19,7 @@ type Contact = {
   phone: string;
 };
 
-const CONTACTS_STORAGE_KEY = '@SafeRoute:contacts';
+const CONTACTS_STORAGE_KEY = "@SafeRoute:contacts";
 
 const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
@@ -18,24 +27,25 @@ const generateId = () => {
 
 const theme = {
   colors: {
-    primary: '#f661ab',
-    secondary: '#cd43d2',
-    backgroundOverlay: '#f5f5f5',
-    cardBackground: '#fff',
-    text: '#fff',
-    border: '#ddd',
-    danger: '#ff4444',
+    primary: "#f661ab",
+    secondary: "#cd43d2",
+    backgroundOverlay: "#f5f5f5",
+    cardBackground: "#fff",
+    text: "#fff", // This color is used for button labels, not general text in your styles
+    border: "#ddd",
+    danger: "#ff4444",
   },
-  font: 'Lufga',
+  font: "Lufga",
 };
 
 export default function ContactsScreen() {
+  const navigation = useNavigation(); // Initialize useNavigation
   const [fontsLoaded] = useFonts({
-    Lufga: require('../../assets/fonts/LufgaRegular.ttf'),
+    Lufga: require("../../assets/fonts/LufgaRegular.ttf"),
   });
   const [contacts, setContacts] = React.useState<Contact[]>([]);
-  const [name, setName] = React.useState('');
-  const [phone, setPhone] = React.useState('');
+  const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [dialogVisible, setDialogVisible] = React.useState(false);
   const contactIdToDelete = React.useRef<string | null>(null);
@@ -53,29 +63,35 @@ export default function ContactsScreen() {
         setContacts(JSON.parse(savedContacts));
       }
     } catch (error) {
-      console.error('Failed to load contacts', error);
+      console.error("Failed to load contacts", error);
     }
   };
 
   const saveContacts = React.useCallback(async (updatedContacts: Contact[]) => {
     try {
-      await AsyncStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(updatedContacts));
+      await AsyncStorage.setItem(
+        CONTACTS_STORAGE_KEY,
+        JSON.stringify(updatedContacts)
+      );
     } catch (error) {
-      console.error('Failed to save contacts', error);
+      console.error("Failed to save contacts", error);
     }
   }, []);
 
   const handleAddContact = () => {
     if (!name.trim() || !phone.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
-    const phoneDigits = phone.replace(/\D/g, '');
+    const phoneDigits = phone.replace(/\D/g, "");
     const isValidPhone = /^\d{10}$/.test(phoneDigits);
-    
+
     if (!isValidPhone) {
-      Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number');
+      Alert.alert(
+        "Invalid Phone Number",
+        "Please enter a valid 10-digit phone number"
+      );
       return;
     }
 
@@ -88,20 +104,23 @@ export default function ContactsScreen() {
     const updatedContacts = [...contacts, newContact];
     setContacts(updatedContacts);
     saveContacts(updatedContacts);
-    setName('');
-    setPhone('');
+    setName("");
+    setPhone("");
   };
 
   const handleEdit = () => {
     if (!editingId || !name.trim() || !phone.trim()) return;
 
-    const phoneDigits = phone.replace(/\D/g, '');
+    const phoneDigits = phone.replace(/\D/g, "");
     if (phoneDigits.length !== 10) {
-      Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number');
+      Alert.alert(
+        "Invalid Phone Number",
+        "Please enter a valid 10-digit phone number"
+      );
       return;
     }
 
-    const updatedContacts = contacts.map(contact =>
+    const updatedContacts = contacts.map((contact) =>
       contact.id === editingId
         ? { ...contact, name: name.trim(), phone: phoneDigits }
         : contact
@@ -110,8 +129,8 @@ export default function ContactsScreen() {
     setContacts(updatedContacts);
     saveContacts(updatedContacts);
     setEditingId(null);
-    setName('');
-    setPhone('');
+    setName("");
+    setPhone("");
     setDialogVisible(false);
   };
 
@@ -120,39 +139,42 @@ export default function ContactsScreen() {
 
     try {
       const updatedContacts = contacts.filter(
-        contact => contact.id !== contactIdToDelete.current
+        (contact) => contact.id !== contactIdToDelete.current
       );
-      
+
       setContacts(updatedContacts);
-      
-      await AsyncStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(updatedContacts));
-      
+
+      await AsyncStorage.setItem(
+        CONTACTS_STORAGE_KEY,
+        JSON.stringify(updatedContacts)
+      );
+
       contactIdToDelete.current = null;
-      setDialogVisible(false);
-      
-      Alert.alert('Success', 'Contact deleted successfully');
+      setDialogVisible(false); // Ensure dialog is closed after delete
+
+      Alert.alert("Success", "Contact deleted successfully");
     } catch (error) {
-      console.error('Failed to delete contact', error);
-      Alert.alert('Error', 'Failed to delete contact');
+      console.error("Failed to delete contact", error);
+      Alert.alert("Error", "Failed to delete contact");
     }
-  }, [contacts]);
+  }, [contacts, saveContacts]); // Added saveContacts to dependency array
 
   const handleDelete = (id: string) => {
     contactIdToDelete.current = id;
     Alert.alert(
-      'Delete Contact',
-      'Are you sure you want to delete this contact?',
+      "Delete Contact",
+      "Are you sure you want to delete this contact?",
       [
-        { 
-          text: 'Cancel', 
-          style: 'cancel', 
+        {
+          text: "Cancel",
+          style: "cancel",
           onPress: () => {
             contactIdToDelete.current = null;
-          }
+          },
         },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: () => {
             if (contactIdToDelete.current) {
               performDelete();
@@ -160,11 +182,11 @@ export default function ContactsScreen() {
           },
         },
       ],
-      { 
-        cancelable: true, 
+      {
+        cancelable: true,
         onDismiss: () => {
           contactIdToDelete.current = null;
-        } 
+        },
       }
     );
   };
@@ -180,12 +202,53 @@ export default function ContactsScreen() {
     setDialogVisible(true);
   };
 
+  // Function to handle sharing live location for a specific contact (from previous turns)
+  const handleShareLiveLocation = (contact: Contact) => {
+    Alert.alert(
+      "Share Live Location",
+      `Do you want to share your live location with ${contact.name} (${contact.phone})?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Share",
+          onPress: () => {
+            navigation.navigate("LiveLocationShareScreen", {
+              startSharing: true,
+              targetContact: {
+                id: contact.id,
+                name: contact.name,
+                phone: contact.phone,
+              },
+            });
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.primary, fontFamily: theme.font }]}>Emergency Contacts</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.secondary, fontFamily: theme.font }]}>Save important contacts for quick access</Text>
+          <Text
+            style={[
+              styles.title,
+              { color: theme.colors.primary, fontFamily: theme.font },
+            ]}
+          >
+            Emergency Contacts
+          </Text>
+          <Text
+            style={[
+              styles.subtitle,
+              { color: theme.colors.secondary, fontFamily: theme.font },
+            ]}
+          >
+            Save important contacts for quick access
+          </Text>
         </View>
 
         <View style={styles.form}>
@@ -201,7 +264,7 @@ export default function ContactsScreen() {
             placeholder="+91 Phone Number"
             value={phone}
             onChangeText={(text) => {
-              const formatted = text.replace(/\D/g, '');
+              const formatted = text.replace(/\D/g, "");
               setPhone(formatted);
             }}
             keyboardType="phone-pad"
@@ -211,20 +274,46 @@ export default function ContactsScreen() {
           <Button
             mode="contained"
             onPress={editingId ? handleEdit : handleAddContact}
-            style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.addButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
             labelStyle={[styles.buttonLabel, { fontFamily: theme.font }]}
           >
-            {editingId ? 'Update Contact' : 'Add Contact'}
+            {editingId ? "Update Contact" : "Add Contact"}
           </Button>
         </View>
 
         <View style={styles.contactsList}>
           {contacts.length > 0 ? (
             contacts.map((contact) => (
-              <Card key={contact.id} style={[styles.contactCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.secondary }]}>
+              <Card
+                key={contact.id}
+                style={[
+                  styles.contactCard,
+                  {
+                    backgroundColor: theme.colors.cardBackground,
+                    borderColor: theme.colors.secondary,
+                  },
+                ]}
+              >
                 <Card.Content>
-                  <Text style={[styles.contactName, { color: theme.colors.primary, fontFamily: theme.font }]}>Name: {contact.name}</Text>
-                  <Text style={[styles.contactPhone, { color: theme.colors.secondary, fontFamily: theme.font }]}>Number: +91 {contact.phone}</Text>
+                  <Text
+                    style={[
+                      styles.contactName,
+                      { color: theme.colors.primary, fontFamily: theme.font },
+                    ]}
+                  >
+                    Name: {contact.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.contactPhone,
+                      { color: theme.colors.secondary, fontFamily: theme.font },
+                    ]}
+                  >
+                    Number: +91 {contact.phone}
+                  </Text>
                 </Card.Content>
                 <Card.Actions style={styles.cardActions}>
                   <IconButton
@@ -234,23 +323,50 @@ export default function ContactsScreen() {
                     iconColor={theme.colors.primary}
                   />
                   <IconButton
+                    icon="share-variant" // MaterialCommunityIcons share icon
+                    size={24}
+                    onPress={() => handleShareLiveLocation(contact)}
+                    iconColor={theme.colors.secondary}
+                  />
+                  <IconButton
                     icon="pencil"
                     size={24}
                     onPress={() => startEditing(contact)}
                     iconColor={theme.colors.secondary}
                   />
+                  {/* NEW: Delete Icon Button */}
+                  <IconButton
+                    icon="delete" // MaterialCommunityIcons delete icon
+                    size={24}
+                    onPress={() => handleDelete(contact.id)} // Calls handleDelete with contact ID
+                    iconColor={theme.colors.danger} // Red color for delete
+                  />
                 </Card.Actions>
               </Card>
             ))
           ) : (
-            <Text style={[styles.noContacts, { fontFamily: theme.font, color: theme.colors.secondary }]}>No contacts saved yet</Text>
+            <Text
+              style={[
+                styles.noContacts,
+                { fontFamily: theme.font, color: theme.colors.secondary },
+              ]}
+            >
+              No contacts saved yet
+            </Text>
           )}
         </View>
       </ScrollView>
 
       <Portal>
-        <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title style={{ color: theme.colors.primary, fontFamily: theme.font }}>Edit Contact</Dialog.Title>
+        <Dialog
+          visible={dialogVisible}
+          onDismiss={() => setDialogVisible(false)}
+        >
+          <Dialog.Title
+            style={{ color: theme.colors.primary, fontFamily: theme.font }}
+          >
+            Edit Contact
+          </Dialog.Title>
           <Dialog.Content>
             <TextInput
               style={[styles.dialogInput, { fontFamily: theme.font }]}
@@ -270,8 +386,15 @@ export default function ContactsScreen() {
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)} textColor={theme.colors.secondary}>Cancel</Button>
-            <Button onPress={handleEdit} textColor={theme.colors.primary}>Save</Button>
+            <Button
+              onPress={() => setDialogVisible(false)}
+              textColor={theme.colors.secondary}
+            >
+              Cancel
+            </Button>
+            <Button onPress={handleEdit} textColor={theme.colors.primary}>
+              Save
+            </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -282,8 +405,8 @@ export default function ContactsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    paddingTop: 48,
+    backgroundColor: "#f5f5f5",
+    paddingTop: 48, // Adjusted to match your original code
     borderTopWidth: 1,
     borderTopColor: theme.colors.secondary,
   },
@@ -296,14 +419,14 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
-    alignItems: 'center',
+    alignItems: "center",
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.secondary,
     paddingBottom: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
     letterSpacing: 0.5,
   },
@@ -314,22 +437,26 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 24,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
     elevation: 3,
+    shadowColor: "#f661ab",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     borderWidth: 1.5,
-    borderColor: theme.colors.primary,
+    borderColor: "#f661ab",
   },
   input: {
-    backgroundColor: '#f9f6fb',
+    backgroundColor: "#f9f6fb",
     borderRadius: 10,
     padding: 14,
     marginBottom: 14,
     fontSize: 17,
     borderWidth: 1,
     borderColor: theme.colors.secondary,
-    color: theme.colors.secondary,
+    color: theme.colors.secondary, // Ensure text color is visible
   },
   addButton: {
     marginTop: 8,
@@ -337,9 +464,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   buttonLabel: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 17,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     letterSpacing: 0.2,
   },
   contactsList: {
@@ -357,7 +484,7 @@ const styles = StyleSheet.create({
   },
   contactName: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 4,
     letterSpacing: 0.1,
   },
@@ -366,21 +493,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   cardActions: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   noContacts: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 24,
     fontSize: 16,
   },
   dialogInput: {
-    backgroundColor: '#f9f6fb',
+    backgroundColor: "#f9f6fb",
     borderRadius: 10,
     padding: 14,
     marginBottom: 14,
     fontSize: 17,
     borderWidth: 1,
     borderColor: theme.colors.secondary,
-    color: theme.colors.secondary,
+    color: theme.colors.secondary, // Ensure text color is visible
   },
 });

@@ -1,12 +1,11 @@
 // HomePage.js (Your original code, with minimal additions for live share)
+import { useNavigation } from "@react-navigation/native";
 import { useFonts as useExpoFonts } from "expo-font";
 import * as Linking from "expo-linking";
 import { SplashScreen, useRouter } from "expo-router";
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { Button } from "react-native-paper";
-// Import useNavigation hook from React Navigation (already present from previous steps)
-import { useNavigation } from "@react-navigation/native";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -204,7 +203,7 @@ const HomePage = () => {
             <Button
               mode="contained"
               onPress={() =>
-                navigation.navigate("SafeMaps", { showPoliceStations: true })
+                navigation.navigate("navigate", { showPoliceStations: true })
               }
               loading={Loading}
               disabled={Loading}
@@ -217,7 +216,7 @@ const HomePage = () => {
             <Button
               mode="contained"
               onPress={() =>
-                navigation.navigate("SafeMaps", { showHospitals: true })
+                navigation.navigate("navigate", { showHospitals: true })
               }
               loading={Loading}
               disabled={Loading}

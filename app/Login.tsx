@@ -1,7 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import { SplashScreen, useRouter } from "expo-router";
-import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import React, { useState } from "react";
 import {
   Alert,
@@ -12,21 +11,9 @@ import {
   View,
 } from "react-native";
 import { Button, TextInput } from "react-native-paper";
+import { auth } from "../config/firebase";
 
 SplashScreen.preventAutoHideAsync();
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCIwWpgUl9kYuPE9dMvozZ7WD54yv8ibbY",
-  authDomain: "saferoute-758ad.firebaseapp.com",
-  projectId: "saferoute-758ad",
-  storageBucket: "saferoute-758ad.firebasestorage.app",
-  messagingSenderId: "954471065861",
-  appId: "1:954471065861:web:43794a2de01b0ea9bb6f6c",
-  measurementId: "G-CCL0QZZM11",
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 
 const theme = {
   colors: {
@@ -110,13 +97,13 @@ const LoginScreen = () => {
             <Text style={styles.errorText}>{password.error}</Text>
           ) : null}
 
-          <View style={styles.forgotPassword}>
+          {/* <View style={styles.forgotPassword}>
             <TouchableOpacity
-              onPress={() => navigation.navigate("ResetPasswordScreen")}
+              onPress={() => router.push("/ResetPasswordScreen")}
             >
               <Text style={styles.forgot}>Forgot your password?</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
           <Button
             mode="contained"
@@ -131,7 +118,7 @@ const LoginScreen = () => {
 
           <View style={styles.row}>
             <Text>You do not have an account yet? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+            <TouchableOpacity onPress={() => router.push("/Signup")}>
               <Text style={styles.link}>Create!</Text>
             </TouchableOpacity>
           </View>

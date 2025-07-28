@@ -1,8 +1,7 @@
 import { useNavigation } from "@react-navigation/native";
-import { initializeApp } from "firebase/app";
+import { useRouter } from "expo-router";
 import {
   createUserWithEmailAndPassword,
-  getAuth,
   updateProfile,
 } from "firebase/auth";
 import React, { useState } from "react";
@@ -16,19 +15,7 @@ import {
 } from "react-native";
 import { Button, TextInput } from "react-native-paper";
 import "react-native-reanimated";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCIwWpgUl9kYuPE9dMvozZ7WD54yv8ibbY",
-  authDomain: "saferoute-758ad.firebaseapp.com",
-  projectId: "saferoute-758ad",
-  storageBucket: "saferoute-758ad.firebasestorage.app",
-  messagingSenderId: "954471065861",
-  appId: "1:954471065861:web:43794a2de01b0ea9bb6f6c",
-  measurementId: "G-CCL0QZZM11",
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+import { auth } from "../config/firebase";
 
 const theme = {
   colors: {
@@ -40,6 +27,7 @@ const theme = {
 };
 
 const SignupScreen: React.FC = () => {
+  const router = useRouter();
   const navigation = useNavigation();
   const [name, setName] = useState({ value: "", error: "" });
   const [email, setEmail] = useState({ value: "", error: "" });
@@ -76,7 +64,7 @@ const SignupScreen: React.FC = () => {
         "Account Created",
         `Welcome, ${name.value}! Your account has been created successfully.`
       );
-      navigation.navigate("Login");
+      router.push("/Login");
     } catch (error) {
       Alert.alert("Sign-Up Failed", (error as any).message);
     } finally {
@@ -149,7 +137,7 @@ const SignupScreen: React.FC = () => {
 
           <View style={styles.row}>
             <Text>I already have an account! </Text>
-            <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+            <TouchableOpacity onPress={() => router.push("/Login")}>
               <Text style={styles.link}>Log in</Text>
             </TouchableOpacity>
           </View>

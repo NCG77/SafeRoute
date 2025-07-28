@@ -1,4 +1,5 @@
 // SafeMaps.js (Main Application Component - formerly App.js)
+import { useNavigation, useRoute } from "@react-navigation/native";
 import Constants from "expo-constants";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -16,9 +17,10 @@ import BottomSheet from "../../components/maps/BottomSheet";
 import DirectionsModal from "../../components/maps/DirectionModal";
 // import EmergencyButton from "../../components/maps/EmergencyButton"; // Removed: EmergencyButton import
 import LoadingOverlay from "../../components/maps/LoadingOverlay";
-import LongPressInstruction from "../../components/maps/LongPressInstruction"; // NEW: Import instruction component
+import LongPressInstruction from "../../components/maps/LongPressInstruction";
 import MapDisplay from "../../components/maps/MapDisplay";
 import NavigationHeader from "../../components/maps/NavigationHeader";
+import NearestPlaceConfirmationModal from "../../components/maps/NearestPlaceConfirmationModal"; // NEW: Import confirmation modal
 import RouteOptionsDisplay from "../../components/maps/RouteOptionDisplay";
 import SafetyReviewModal from "../../components/maps/SafetyReviewModal";
 import SearchBar from "../../components/maps/SearchBar";
@@ -29,6 +31,11 @@ import { GlobalStyles } from "../../constants/GlobalStyles";
 const { width, height } = Dimensions.get("window");
 
 const SafeMaps = () => {
+  // Get route parameters
+  const route = useRoute();
+  const navigation = useNavigation();
+  const { showPoliceStations, showHospitals } = route.params || {};
+
   // State for location and map
   const [location, setLocation] = useState(null);
   const [mapRegion, setMapRegion] = useState(null); // To control map's visible region
@@ -58,9 +65,18 @@ const SafeMaps = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewLocation, setReviewLocation] = useState(null); // Location for new review
 
-  // NEW: State for long press instruction visibility
+  // State for long press instruction visibility
   const [showLongPressInstruction, setShowLongPressInstruction] =
     useState(false);
+
+  // State for nearby police stations and hospitals
+  const [nearbyPoliceStations, setNearbyPoliceStations] = useState([]);
+  const [nearbyHospitals, setNearbyHospitals] = useState([]);
+  const [isLoadingNearby, setIsLoadingNearby] = useState(false);
+
+  // NEW: State for the nearest place details and modal visibility
+  const [nearestPlaceDetails, setNearestPlaceDetails] = useState(null);
+  const [showNearestPlaceModal, setShowNearestPlaceModal] = useState(false);
 
   // Animation for bottom sheet
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
@@ -101,6 +117,36 @@ const SafeMaps = () => {
     }
   }, [location]);
 
+  // Effect to trigger nearby search based on route params
+  useEffect(() => {
+    if (location && (showPoliceStations || showHospitals)) {
+      // Clear any existing route/search results when a nearby search is triggered
+      setRouteCoordinates([]);
+      setRouteInfo(null);
+      setRouteOptions([]);
+      setSelectedLocation(null);
+      setSearchQuery("");
+      setShowSearchResults(false);
+      setShowBottomSheet(false);
+      setIsNavigationMode(false); // Ensure not in navigation mode
+
+      if (showPoliceStations) {
+        getNearbyPlaces("police");
+      }
+      if (showHospitals) {
+        getNearbyPlaces("hospital");
+      }
+
+      // IMPORTANT for tab navigation: Clear params after consumption
+      // This prevents the effect from re-running if the user navigates away
+      // and then back to the SafeMaps tab without pressing the button again.
+      navigation.setParams({
+        showPoliceStations: undefined,
+        showHospitals: undefined,
+      });
+    }
+  }, [location, showPoliceStations, showHospitals, navigation]);
+
   // --- Location and Safety Data Management ---
 
   /**
@@ -136,7 +182,6 @@ const SafeMaps = () => {
         }
       }
     } catch (error) {
-      console.error("Error getting current location:", error);
       Alert.alert("Error", "Failed to get current location. Please try again.");
     }
   };
@@ -304,7 +349,7 @@ const SafeMaps = () => {
       return;
     }
 
-    // NEW: Hide instruction when search starts
+    // Hide instruction when search starts
     setShowLongPressInstruction(false);
 
     if (!GOOGLE_PLACES_API_KEY) {
@@ -544,8 +589,8 @@ const SafeMaps = () => {
       let overallSafety = "safe";
       // MODIFIED: Lowered threshold for 'dangerous' to be more sensitive
       if (totalDangerousSegments > 0 || dangerPercentage >= 1)
-        overallSafety =
-          "dangerous"; // If even one dangerous segment, or 1% of segments are dangerous
+        overallSafety = "dangerous";
+      // If even one dangerous segment, or 1% of segments are dangerous
       else if (dangerPercentage > 10) overallSafety = "caution";
       else if (
         totalSegments > 0 &&
@@ -701,9 +746,12 @@ const SafeMaps = () => {
   /**
    * Function to calculate routes and display options.
    * This does NOT set navigation mode to true immediately.
+   * @param {object} destinationCoord - The coordinate of the destination to calculate route for.
    */
-  const calculateAndShowRoutes = async () => {
-    if (!location || !selectedLocation) {
+  const calculateAndShowRoutes = async (destinationCoord) => {
+    // MODIFIED: Accepts destinationCoord
+    if (!location || !destinationCoord) {
+      // MODIFIED: Checks destinationCoord
       Alert.alert("Error", "Please select a destination first.");
       return;
     }
@@ -716,13 +764,20 @@ const SafeMaps = () => {
     setSelectedRouteIndex(0);
     setIsNavigationMode(false); // Ensure navigation mode is false when showing options
 
+    // Set selectedLocation here, just before calculation uses it
+    setSelectedLocation({
+      title: nearestPlaceDetails?.title || "Destination", // Use nearestPlaceDetails title if available
+      subtitle: nearestPlaceDetails?.subtitle || "",
+      coordinate: destinationCoord,
+    });
+
     try {
       const routes = await getMultipleGoogleRoutes(
         {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
         },
-        selectedLocation.coordinate
+        destinationCoord // MODIFIED: Use destinationCoord here
       );
 
       if (!routes || routes.length === 0) {
@@ -792,6 +847,141 @@ const SafeMaps = () => {
   };
 
   /**
+   * Function to fetch nearby places (police or hospital)
+   * @param {string} placeType - 'police' or 'hospital'
+   */
+  const getNearbyPlaces = async (placeType) => {
+    if (!location) {
+      Alert.alert(
+        "Location Error",
+        "Cannot find nearby places without your current location."
+      );
+      return;
+    }
+    if (!GOOGLE_PLACES_API_KEY) {
+      Alert.alert(
+        "API Key Missing",
+        "Google Places API key is not configured."
+      );
+      console.error("Google Places API key is missing.");
+      return;
+    }
+
+    setIsLoadingNearby(true);
+    setNearbyPoliceStations([]); // Clear all nearby markers initially
+    setNearbyHospitals([]); // Clear all nearby markers initially
+    setNearestPlaceDetails(null); // Clear previous nearest place details
+
+    try {
+      const NEARBY_SEARCH_URL =
+        "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+      const radius = 50000; // Search within 50 km radius (adjust as needed)
+      const url = `${NEARBY_SEARCH_URL}?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=${placeType}&key=${GOOGLE_PLACES_API_KEY}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === "OK") {
+        // MODIFIED: Directly take the first result from Google's API response
+        const nearestPlaceFromAPI = data.results[0];
+
+        if (nearestPlaceFromAPI) {
+          const formattedNearest = {
+            id: nearestPlaceFromAPI.place_id,
+            title: nearestPlaceFromAPI.name,
+            subtitle:
+              nearestPlaceFromAPI.vicinity ||
+              nearestPlaceFromAPI.formatted_address,
+            coordinate: {
+              latitude: nearestPlaceFromAPI.geometry.location.lat,
+              longitude: nearestPlaceFromAPI.geometry.location.lng,
+            },
+            // Calculate distance for display in modal, using Haversine
+            distance: calculateDistance(
+              location.coords,
+              nearestPlaceFromAPI.geometry.location
+            ),
+          };
+
+          // Set only the nearest place to the respective state
+          if (placeType === "police") {
+            setNearbyPoliceStations([formattedNearest]); // Only the nearest police station
+          } else if (placeType === "hospital") {
+            setNearbyHospitals([formattedNearest]); // Only the nearest hospital
+          }
+
+          setNearestPlaceDetails({ ...formattedNearest, type: placeType }); // Store details for modal
+          setShowNearestPlaceModal(true); // Show the confirmation modal
+
+          // Fit map to this single nearest marker
+          if (mapRef.current) {
+            mapRef.current.fitToCoordinates(
+              [formattedNearest.coordinate, location.coords],
+              {
+                // Include current location for context
+                edgePadding: { top: 100, right: 50, bottom: 300, left: 50 },
+                animated: true,
+              }
+            );
+          }
+        } else {
+          // No results found even if status is OK but results array is empty
+          Alert.alert(
+            `No ${
+              placeType === "police" ? "Police Stations" : "Hospitals"
+            } Found`,
+            `Could not find any ${
+              placeType === "police" ? "police stations" : "hospitals"
+            } within 50 km.`
+          );
+        }
+      } else if (data.status === "ZERO_RESULTS") {
+        Alert.alert(
+          `No ${
+            placeType === "police" ? "Police Stations" : "Hospitals"
+          } Found`,
+          `Could not find any ${
+            placeType === "police" ? "police stations" : "hospitals"
+          } within 50 km.`
+        );
+      } else {
+        console.error(
+          `Google Places Nearby Search error for ${placeType}:`,
+          data.status,
+          data.error_message
+        );
+        Alert.alert(
+          "Nearby Search Error",
+          `Could not fetch ${placeType} locations. Error: ${
+            data.error_message || data.status
+          }`
+        );
+      }
+    } catch (error) {
+      console.error(`Error fetching nearby ${placeType}:`, error);
+      Alert.alert(
+        "Network Error",
+        `Failed to fetch nearby ${placeType}. Check your internet connection.`
+      );
+    } finally {
+      setIsLoadingNearby(false);
+    }
+  };
+
+  /**
+   * Starts navigation to the nearest place found.
+   */
+  const startNavigationToNearestPlace = () => {
+    if (nearestPlaceDetails && location) {
+      // Pass the coordinate directly to calculateAndShowRoutes
+      calculateAndShowRoutes(nearestPlaceDetails.coordinate);
+      setShowNearestPlaceModal(false); // Close the modal
+    } else {
+      Alert.alert("Error", "No nearest place selected for navigation.");
+    }
+  };
+
+  /**
    * Initiates actual navigation. This is called from RouteOptionsDisplay.
    */
   const startActualNavigation = () => {
@@ -817,6 +1007,10 @@ const SafeMaps = () => {
     setDirections([]);
     setRouteOptions([]);
     setSelectedRouteIndex(0);
+    setNearbyPoliceStations([]); // Clear nearby markers on stop navigation
+    setNearbyHospitals([]); // Clear nearby markers on stop navigation
+    setNearestPlaceDetails(null); // Clear nearest place details on stop navigation
+    setShowNearestPlaceModal(false); // Ensure modal is closed
     // Optionally, reset map to current location
     mapRef.current?.animateToRegion({
       latitude: location.coords.latitude,
@@ -876,7 +1070,7 @@ const SafeMaps = () => {
           setSearchQuery={setSearchQuery}
           searchResults={searchResults}
           showSearchResults={showSearchResults}
-          onSearch={searchPlaces} // This now calls the Google Places API search
+          onSearch={searchPlaces}
           onSelectResult={selectSearchResult}
           onClearSearch={() => {
             setSearchQuery("");
@@ -899,13 +1093,21 @@ const SafeMaps = () => {
             setShowLongPressInstruction(false); // Hide instruction on long press
           }}
           onMyLocationPress={getCurrentLocation}
+          nearbyPoliceStations={nearbyPoliceStations}
+          nearbyHospitals={nearbyHospitals}
         />
 
         {/* Loading Overlay for route calculation */}
         <LoadingOverlay
-          isVisible={isCalculatingRoute}
-          message="Finding safest route..."
-          subMessage="Avoiding dangerous areas"
+          isVisible={isCalculatingRoute || isLoadingNearby}
+          message={
+            isCalculatingRoute
+              ? "Finding safest route..."
+              : "Finding nearby places..."
+          }
+          subMessage={
+            isCalculatingRoute ? "Avoiding dangerous areas" : "Please wait..."
+          }
         />
 
         {/* Navigation Header */}
@@ -922,10 +1124,8 @@ const SafeMaps = () => {
           selectedRouteIndex={selectedRouteIndex}
           onSelectRoute={selectRouteOption}
           onViewDirections={() => setShowDirectionsModal(true)}
-          // Pass the new startActualNavigation function
           onStartNavigation={startActualNavigation}
-          // Pass the function to trigger re-calculation when a new review is added
-          onRecalculateRoute={calculateAndShowRoutes} // Re-use calculateAndShowRoutes
+          onRecalculateRoute={calculateAndShowRoutes} // This will now need selectedLocation to be set externally
           safeRouteOnly={safeRouteOnly}
           onToggleSafeRouteOnly={() => setSafeRouteOnly((prev) => !prev)}
         />
@@ -935,8 +1135,10 @@ const SafeMaps = () => {
           showBottomSheet={showBottomSheet}
           bottomSheetAnim={bottomSheetAnim}
           selectedLocation={selectedLocation}
-          onStartNavigation={calculateAndShowRoutes} // Now calls calculateAndShowRoutes
-          onClose={() => animateBottomSheet(false)} // Close bottom sheet
+          onStartNavigation={() =>
+            calculateAndShowRoutes(selectedLocation.coordinate)
+          } // MODIFIED: Pass coordinate directly
+          onClose={() => animateBottomSheet(false)}
         />
 
         {/* Safety Review Modal */}
@@ -955,10 +1157,23 @@ const SafeMaps = () => {
           onClose={() => setShowDirectionsModal(false)}
         />
 
-        {/* NEW: Long Press Instruction */}
+        {/* Long Press Instruction */}
         <LongPressInstruction
           isVisible={showLongPressInstruction}
           onClose={() => setShowLongPressInstruction(false)}
+        />
+
+        {/* Nearest Place Confirmation Modal */}
+        <NearestPlaceConfirmationModal
+          isVisible={showNearestPlaceModal}
+          placeDetails={nearestPlaceDetails}
+          onConfirmNavigation={startNavigationToNearestPlace}
+          onCancel={() => {
+            setShowNearestPlaceModal(false);
+            setNearestPlaceDetails(null); // Clear details if user cancels
+            setNearbyPoliceStations([]); // Clear markers if user cancels
+            setNearbyHospitals([]); // Clear markers if user cancels
+          }}
         />
 
         {/* Emergency Button */}

@@ -39,10 +39,20 @@ SafeRoute is designed to provide a safe and secure commuting experience for wome
    ```bash
    npx expo install
    ```
-3. **Set up Firebase**:
+3. **Set up environment variables**:
+   - Copy `.env.example` to `.env`
+   - Fill in your actual API keys in the `.env` file
+   - **Never commit the `.env` file to version control**
+   
+4. **Set up Firebase**:
    - Create a Firebase project.
    - Add Firebase to your React Native app.
    - Enable Firestore, Authentication, and Cloud Messaging.
+   - Update `.env` with your Firebase configuration.
+
+5. **Set up Google Maps API**:
+   - Get API keys for Google Maps, Places, and Directions APIs.
+   - Update `.env` with your Google API keys.
 4. **Run the app**:
    ```bash
    npx expo start

@@ -1,9 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import {
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import React, { useState } from "react";
 import {
   Alert,

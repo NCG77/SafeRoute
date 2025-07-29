@@ -1,9 +1,11 @@
+// components/maps/MapDisplay.js
+import { useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, {
-    Circle,
-    Marker,
-    Polyline,
-    PROVIDER_GOOGLE,
+  Circle,
+  Marker,
+  Polyline,
+  PROVIDER_GOOGLE,
 } from "react-native-maps";
 import { GlobalStyles } from "../../constants/GlobalStyles";
 
@@ -22,6 +24,8 @@ import { GlobalStyles } from "../../constants/GlobalStyles";
  * - routeColor: Color for the route polyline.
  * - onLongPress: Function to call when the map is long-pressed (for adding reviews).
  * - onMyLocationPress: Function to call when "My Location" button is pressed.
+ * - nearbyPoliceStations: Array of nearby police station objects.
+ * - nearbyHospitals: Array of nearby hospital objects.
  */
 const MapDisplay = ({
   mapRef,
@@ -33,7 +37,32 @@ const MapDisplay = ({
   routeColor,
   onLongPress,
   onMyLocationPress,
+  nearbyPoliceStations,
+  nearbyHospitals,
 }) => {
+  // Effect to fit map to nearby markers when they appear
+  useEffect(() => {
+    const allNearbyCoords = [];
+    if (nearbyPoliceStations.length > 0) {
+      allNearbyCoords.push(...nearbyPoliceStations.map((p) => p.coordinate));
+    }
+    if (nearbyHospitals.length > 0) {
+      allNearbyCoords.push(...nearbyHospitals.map((p) => p.coordinate));
+    }
+
+    if (mapRef.current && allNearbyCoords.length > 0) {
+      // Temporarily remove current location from fitToCoordinates to see if it helps
+      // if (initialRegion?.latitude && initialRegion?.longitude) {
+      //   allNearbyCoords.push({latitude: initialRegion.latitude, longitude: initialRegion.longitude});
+      // }
+
+      mapRef.current.fitToCoordinates(allNearbyCoords, {
+        edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, // Adjust padding as needed
+        animated: true,
+      });
+    }
+  }, [nearbyPoliceStations, nearbyHospitals]); // Removed initialRegion from dependency array for this specific effect
+
   return (
     <View style={styles.mapContainer}>
       <MapView
@@ -42,7 +71,7 @@ const MapDisplay = ({
         provider={PROVIDER_GOOGLE}
         initialRegion={initialRegion}
         showsUserLocation={true}
-        showsMyLocationButton={false} // Custom button is used instead
+        showsMyLocationButton={false}
         showsTraffic={true}
         showsBuildings={true}
         showsIndoors={true}
@@ -53,7 +82,7 @@ const MapDisplay = ({
           <Marker
             coordinate={selectedLocation.coordinate}
             title={selectedLocation.title}
-            pinColor={GlobalStyles.colors.primary} // Google blue
+            pinColor={GlobalStyles.colors.primary}
           />
         )}
 
@@ -69,10 +98,10 @@ const MapDisplay = ({
             description={review.comment}
             pinColor={
               review.rating <= 2
-                ? GlobalStyles.colors.danger // Red for unsafe
+                ? GlobalStyles.colors.danger
                 : review.rating >= 4
-                ? GlobalStyles.colors.success // Green for safe
-                : GlobalStyles.colors.warning // Orange for caution
+                ? GlobalStyles.colors.success
+                : GlobalStyles.colors.warning
             }
           />
         ))}
@@ -82,9 +111,9 @@ const MapDisplay = ({
           <Circle
             key={`danger-${index}`}
             center={{ latitude: area.latitude, longitude: area.longitude }}
-            radius={area.radius} // Radius in meters
-            strokeColor="rgba(255, 68, 68, 0.6)" // Red border
-            fillColor="rgba(255, 68, 68, 0.2)" // Light red fill
+            radius={area.radius}
+            strokeColor="rgba(255, 68, 68, 0.6)"
+            fillColor="rgba(255, 68, 68, 0.2)"
             strokeWidth={2}
           />
         ))}
@@ -100,6 +129,32 @@ const MapDisplay = ({
             lineJoin="round"
           />
         )}
+
+        {/* Markers for nearby Police Stations */}
+        {nearbyPoliceStations.map((place) => {
+          return (
+            <Marker
+              key={`police-${place.id}`}
+              coordinate={place.coordinate}
+              title={place.title}
+              description={place.subtitle}
+              pinColor={GlobalStyles.colors.secondary} // Purple
+            />
+          );
+        })}
+
+        {/* Markers for nearby Hospitals */}
+        {nearbyHospitals.map((place) => {
+          return (
+            <Marker
+              key={`hospital-${place.id}`}
+              coordinate={place.coordinate}
+              title={place.title}
+              description={place.subtitle}
+              pinColor={GlobalStyles.colors.success} // Green
+            />
+          );
+        })}
       </MapView>
 
       {/* My Location Button */}
@@ -122,7 +177,7 @@ const styles = StyleSheet.create({
   },
   myLocationButton: {
     position: "absolute",
-    bottom: 150, // Adjusted to not overlap with bottom sheets
+    bottom: 150,
     right: 20,
     width: 48,
     height: 48,

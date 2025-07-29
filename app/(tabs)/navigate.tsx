@@ -1,13 +1,15 @@
+// SafeMaps.js (Main Application Component - formerly App.js)
+import { useNavigation, useRoute } from "@react-navigation/native";
 import Constants from "expo-constants";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Dimensions,
-    SafeAreaView,
-    StatusBar,
-    Text,
+  Alert,
+  Animated,
+  Dimensions,
+  SafeAreaView,
+  StatusBar,
+  Text,
 } from "react-native";
 
 import BottomSheet from "../../components/maps/BottomSheet";
@@ -16,6 +18,7 @@ import LoadingOverlay from "../../components/maps/LoadingOverlay";
 import LongPressInstruction from "../../components/maps/LongPressInstruction";
 import MapDisplay from "../../components/maps/MapDisplay";
 import NavigationHeader from "../../components/maps/NavigationHeader";
+import NearestPlaceConfirmationModal from "../../components/maps/NearestPlaceConfirmationModal"; // NEW: Import confirmation modal
 import RouteOptionsDisplay from "../../components/maps/RouteOptionDisplay";
 import SafetyReviewModal from "../../components/maps/SafetyReviewModal";
 import SearchBar from "../../components/maps/SearchBar";
@@ -61,15 +64,24 @@ interface RouteInfo {
 }
 
 const SafeMaps = () => {
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [mapRegion, setMapRegion] = useState<any>(null);
-  const mapRef = useRef<any>(null);
-  const [currentRegionName, setCurrentRegionName] = useState<string | null>(null);
+  // Get route parameters
+  const route = useRoute();
+  const navigation = useNavigation();
+  const { showPoliceStations, showHospitals } = route.params || {};
 
+  // State for location and map
+  const [location, setLocation] = useState(null);
+  const [mapRegion, setMapRegion] = useState(null); // To control map's visible region
+  const mapRef = useRef(null);
+  const [currentRegionName, setCurrentRegionName] = useState(null); // Stores current city/region name (kept for potential future use)
+
+  // State for search functionality
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<SearchResult | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<SearchResult | null>(
+    null
+  );
 
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
@@ -86,9 +98,20 @@ const SafeMaps = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewLocation, setReviewLocation] = useState(null);
 
+  // State for long press instruction visibility
   const [showLongPressInstruction, setShowLongPressInstruction] =
     useState(false);
 
+  // State for nearby police stations and hospitals
+  const [nearbyPoliceStations, setNearbyPoliceStations] = useState([]);
+  const [nearbyHospitals, setNearbyHospitals] = useState([]);
+  const [isLoadingNearby, setIsLoadingNearby] = useState(false);
+
+  // NEW: State for the nearest place details and modal visibility
+  const [nearestPlaceDetails, setNearestPlaceDetails] = useState(null);
+  const [showNearestPlaceModal, setShowNearestPlaceModal] = useState(false);
+
+  // Animation for bottom sheet
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
   const [showBottomSheet, setShowBottomSheet] = useState(false);
 
@@ -124,6 +147,42 @@ const SafeMaps = () => {
     }
   }, [location]);
 
+  // Effect to trigger nearby search based on route params
+  useEffect(() => {
+    if (location && (showPoliceStations || showHospitals)) {
+      // Clear any existing route/search results when a nearby search is triggered
+      setRouteCoordinates([]);
+      setRouteInfo(null);
+      setRouteOptions([]);
+      setSelectedLocation(null);
+      setSearchQuery("");
+      setShowSearchResults(false);
+      setShowBottomSheet(false);
+      setIsNavigationMode(false); // Ensure not in navigation mode
+
+      if (showPoliceStations) {
+        getNearbyPlaces("police");
+      }
+      if (showHospitals) {
+        getNearbyPlaces("hospital");
+      }
+
+      // IMPORTANT for tab navigation: Clear params after consumption
+      // This prevents the effect from re-running if the user navigates away
+      // and then back to the SafeMaps tab without pressing the button again.
+      navigation.setParams({
+        showPoliceStations: undefined,
+        showHospitals: undefined,
+      });
+    }
+  }, [location, showPoliceStations, showHospitals, navigation]);
+
+  // --- Location and Safety Data Management ---
+
+  /**
+   * Fetches the current device location and requests permissions.
+   * Also performs reverse geocoding to get current city/region name.
+   */
   const getCurrentLocation = async () => {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -152,92 +211,126 @@ const SafeMaps = () => {
         }
       }
     } catch (error) {
-      console.error("Error getting current location:", error);
       Alert.alert("Error", "Failed to get current location. Please try again.");
     }
   };
 
   const loadSafetyData = () => {
     const mockReviews = [
+      // Safe Areas in Bhopal (Rating 4-5)
       {
         id: 1,
-        latitude: 28.6139,
-        longitude: 77.209,
-        rating: 2,
-        comment: "Poor lighting at night, avoid after dark",
-        category: "lighting",
-        timestamp: Date.now() - 86400000,
-        userId: "user1",
+        latitude: 23.2548, // Near Upper Lake (Bada Talab) - Boat Club area
+        longitude: 77.3995,
+        rating: 5,
+        comment:
+          "Well-lit and popular area for walks. Feels very safe due to crowds.",
+        category: "general",
+        timestamp: Date.now() - 86400000 * 5, // 5 days ago
+        userId: "bhopal_user1",
       },
       {
         id: 2,
-        latitude: 28.6129,
-        longitude: 77.208,
-        rating: 1,
-        comment: "Frequent harassment reports, very unsafe area",
-        category: "harassment",
-        timestamp: Date.now() - 172800000,
-        userId: "user2",
+        latitude: 23.2595, // Near DB City Mall / Zone-I
+        longitude: 77.4126,
+        rating: 4,
+        comment:
+          "Busy commercial hub with good security. Safe during day and evening.",
+        category: "security",
+        timestamp: Date.now() - 86400000 * 3, // 3 days ago
+        userId: "bhopal_user2",
       },
       {
         id: 3,
-        latitude: 28.6149,
-        longitude: 77.21,
-        rating: 5,
-        comment: "Well-lit, lots of people, feels very safe",
+        latitude: 23.245, // Near New Market
+        longitude: 77.404,
+        rating: 4,
+        comment:
+          "Crowded market area, active police patrolling. Safe for shopping.",
         category: "general",
-        timestamp: Date.now() - 259200000,
-        userId: "user3",
+        timestamp: Date.now() - 86400000 * 7, // 7 days ago
+        userId: "bhopal_user3",
       },
       {
         id: 4,
-        latitude: 28.6159,
-        longitude: 77.211,
-        rating: 4,
-        comment: "Good area with security cameras",
+        latitude: 23.27, // Near Van Vihar National Park entrance
+        longitude: 77.375,
+        rating: 5,
+        comment:
+          "Protected national park area. Very safe during operational hours. Good for nature walks.",
         category: "security",
-        timestamp: Date.now() - 345600000,
-        userId: "user4",
+        timestamp: Date.now() - 86400000 * 2, // 2 days ago
+        userId: "bhopal_user4",
       },
       {
         id: 5,
-        latitude: 28.6165,
-        longitude: 77.2075,
-        rating: 1,
-        comment: "Narrow street, often deserted, feels risky.",
+        latitude: 23.22, // Near Shahpura Lake
+        longitude: 77.435,
+        rating: 4,
+        comment:
+          "Nice lakeside area, well-maintained. Feels safe with families around.",
         category: "general",
-        timestamp: Date.now() - 518400000,
-        userId: "user5",
+        timestamp: Date.now() - 86400000 * 4, // 4 days ago
+        userId: "bhopal_user5",
       },
+
+      // Caution Areas in Bhopal (Rating 3)
       {
         id: 6,
-        latitude: 28.6105,
-        longitude: 77.212,
-        rating: 5,
-        comment: "Police patrol frequently, very safe.",
-        category: "security",
-        timestamp: Date.now() - 604800000,
-        userId: "user6",
+        latitude: 23.235, // Near Habibganj Railway Station / ISBT area
+        longitude: 77.43,
+        rating: 3,
+        comment:
+          "Busy transport hub. Can be crowded and chaotic. Exercise caution at night.",
+        category: "crowd",
+        timestamp: Date.now() - 86400000 * 1, // 1 day ago
+        userId: "bhopal_user6",
       },
       {
         id: 7,
-        latitude: 23.2681,
+        latitude: 23.2681, // Ibrahimganj - based on your previous testing
         longitude: 77.4049,
-        rating: 1,
-        comment: "Test: Extremely dangerous area, avoid at all costs!",
-        category: "crime",
-        timestamp: Date.now(),
-        userId: "test_user_dangerous",
+        rating: 3,
+        comment:
+          "Narrow streets, some areas lack proper lighting. Mixed reviews.",
+        category: "lighting",
+        timestamp: Date.now() - 86400000 * 6, // 6 days ago
+        userId: "bhopal_user7",
       },
+
+      // Dangerous Areas in Bhopal (Rating 1-2)
       {
         id: 8,
-        latitude: 23.275,
+        latitude: 23.265, // Example of a less populated street/alley (hypothetical)
+        longitude: 77.408,
+        rating: 2,
+        comment:
+          "Very poor lighting and often deserted after 9 PM. Felt unsafe walking alone.",
+        category: "lighting",
+        timestamp: Date.now() - 86400000 * 0.5, // 12 hours ago
+        userId: "bhopal_user8",
+      },
+      {
+        id: 9,
+        latitude: 23.24, // Another hypothetical isolated spot
+        longitude: 77.39,
+        rating: 1,
+        comment:
+          "Frequent reports of petty crime and harassment. Highly unsafe, avoid this route.",
+        category: "crime",
+        timestamp: Date.now() - 86400000 * 1.5, // 1.5 days ago
+        userId: "bhopal_user9",
+      },
+      {
+        id: 10,
+        latitude: 23.275, // Near a less maintained area (hypothetical)
         longitude: 77.415,
         rating: 2,
-        comment: "Test: Caution advised, poor visibility at night.",
-        category: "lighting",
-        timestamp: Date.now(),
-        userId: "test_user_caution",
+        comment:
+          "Broken pavements and overgrown bushes make it feel unsafe, especially at night.",
+        category: "infrastructure",
+        timestamp: Date.now() - 86400000 * 2.5, // 2.5 days ago
+        userId: "bhopal_user10",
       },
     ];
 
@@ -256,7 +349,13 @@ const SafeMaps = () => {
   };
 
   const submitSafetyReview = useCallback(
-    (latitude: number, longitude: number, rating: number, comment: string, category: string) => {
+    (
+      latitude: number,
+      longitude: number,
+      rating: number,
+      comment: string,
+      category: string
+    ) => {
       const newReview = {
         id: Date.now(),
         latitude,
@@ -300,6 +399,7 @@ const SafeMaps = () => {
       return;
     }
 
+    // Hide instruction when search starts
     setShowLongPressInstruction(false);
 
     if (!GOOGLE_PLACES_API_KEY) {
@@ -434,7 +534,10 @@ const SafeMaps = () => {
    * @param {object} destination - {latitude, longitude}
    * @returns {number} Distance in kilometers.
    */
-  const calculateDistance = (origin: Coordinate, destination: Coordinate): number => {
+  const calculateDistance = (
+    origin: Coordinate,
+    destination: Coordinate
+  ): number => {
     const R = 6371; // Earth's radius in km
     const deg2rad = (deg: number) => deg * (Math.PI / 180);
 
@@ -522,8 +625,8 @@ const SafeMaps = () => {
       let overallSafety = "safe";
       // MODIFIED: Lowered threshold for 'dangerous' to be more sensitive
       if (totalDangerousSegments > 0 || dangerPercentage >= 1)
-        overallSafety =
-          "dangerous"; // If even one dangerous segment, or 1% of segments are dangerous
+        overallSafety = "dangerous";
+      // If even one dangerous segment, or 1% of segments are dangerous
       else if (dangerPercentage > 10) overallSafety = "caution";
       else if (
         totalSegments > 0 &&
@@ -570,7 +673,10 @@ const SafeMaps = () => {
    * @param {object} destination - {latitude, longitude}
    * @returns {Array<object>} Sorted array of route objects with safety analysis.
    */
-  const getMultipleGoogleRoutes = async (origin: Coordinate, destination: Coordinate) => {
+  const getMultipleGoogleRoutes = async (
+    origin: Coordinate,
+    destination: Coordinate
+  ) => {
     const API_KEY =
       process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY ||
       Constants.expoConfig?.extra?.googleDirectionsApiKey ||
@@ -678,9 +784,12 @@ const SafeMaps = () => {
   /**
    * Function to calculate routes and display options.
    * This does NOT set navigation mode to true immediately.
+   * @param {object} destinationCoord - The coordinate of the destination to calculate route for.
    */
-  const calculateAndShowRoutes = async () => {
-    if (!location || !selectedLocation) {
+  const calculateAndShowRoutes = async (destinationCoord) => {
+    // MODIFIED: Accepts destinationCoord
+    if (!location || !destinationCoord) {
+      // MODIFIED: Checks destinationCoord
       Alert.alert("Error", "Please select a destination first.");
       return;
     }
@@ -693,13 +802,20 @@ const SafeMaps = () => {
     setSelectedRouteIndex(0);
     setIsNavigationMode(false); // Ensure navigation mode is false when showing options
 
+    // Set selectedLocation here, just before calculation uses it
+    setSelectedLocation({
+      title: nearestPlaceDetails?.title || "Destination", // Use nearestPlaceDetails title if available
+      subtitle: nearestPlaceDetails?.subtitle || "",
+      coordinate: destinationCoord,
+    });
+
     try {
       const routes = await getMultipleGoogleRoutes(
         {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
         },
-        selectedLocation.coordinate
+        destinationCoord // MODIFIED: Use destinationCoord here
       );
 
       if (!routes || routes.length === 0) {
@@ -769,6 +885,141 @@ const SafeMaps = () => {
   };
 
   /**
+   * Function to fetch nearby places (police or hospital)
+   * @param {string} placeType - 'police' or 'hospital'
+   */
+  const getNearbyPlaces = async (placeType) => {
+    if (!location) {
+      Alert.alert(
+        "Location Error",
+        "Cannot find nearby places without your current location."
+      );
+      return;
+    }
+    if (!GOOGLE_PLACES_API_KEY) {
+      Alert.alert(
+        "API Key Missing",
+        "Google Places API key is not configured."
+      );
+      console.error("Google Places API key is missing.");
+      return;
+    }
+
+    setIsLoadingNearby(true);
+    setNearbyPoliceStations([]); // Clear all nearby markers initially
+    setNearbyHospitals([]); // Clear all nearby markers initially
+    setNearestPlaceDetails(null); // Clear previous nearest place details
+
+    try {
+      const NEARBY_SEARCH_URL =
+        "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+      const radius = 50000; // Search within 50 km radius (adjust as needed)
+      const url = `${NEARBY_SEARCH_URL}?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=${placeType}&key=${GOOGLE_PLACES_API_KEY}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === "OK") {
+        // MODIFIED: Directly take the first result from Google's API response
+        const nearestPlaceFromAPI = data.results[0];
+
+        if (nearestPlaceFromAPI) {
+          const formattedNearest = {
+            id: nearestPlaceFromAPI.place_id,
+            title: nearestPlaceFromAPI.name,
+            subtitle:
+              nearestPlaceFromAPI.vicinity ||
+              nearestPlaceFromAPI.formatted_address,
+            coordinate: {
+              latitude: nearestPlaceFromAPI.geometry.location.lat,
+              longitude: nearestPlaceFromAPI.geometry.location.lng,
+            },
+            // Calculate distance for display in modal, using Haversine
+            distance: calculateDistance(
+              location.coords,
+              nearestPlaceFromAPI.geometry.location
+            ),
+          };
+
+          // Set only the nearest place to the respective state
+          if (placeType === "police") {
+            setNearbyPoliceStations([formattedNearest]); // Only the nearest police station
+          } else if (placeType === "hospital") {
+            setNearbyHospitals([formattedNearest]); // Only the nearest hospital
+          }
+
+          setNearestPlaceDetails({ ...formattedNearest, type: placeType }); // Store details for modal
+          setShowNearestPlaceModal(true); // Show the confirmation modal
+
+          // Fit map to this single nearest marker
+          if (mapRef.current) {
+            mapRef.current.fitToCoordinates(
+              [formattedNearest.coordinate, location.coords],
+              {
+                // Include current location for context
+                edgePadding: { top: 100, right: 50, bottom: 300, left: 50 },
+                animated: true,
+              }
+            );
+          }
+        } else {
+          // No results found even if status is OK but results array is empty
+          Alert.alert(
+            `No ${
+              placeType === "police" ? "Police Stations" : "Hospitals"
+            } Found`,
+            `Could not find any ${
+              placeType === "police" ? "police stations" : "hospitals"
+            } within 50 km.`
+          );
+        }
+      } else if (data.status === "ZERO_RESULTS") {
+        Alert.alert(
+          `No ${
+            placeType === "police" ? "Police Stations" : "Hospitals"
+          } Found`,
+          `Could not find any ${
+            placeType === "police" ? "police stations" : "hospitals"
+          } within 50 km.`
+        );
+      } else {
+        console.error(
+          `Google Places Nearby Search error for ${placeType}:`,
+          data.status,
+          data.error_message
+        );
+        Alert.alert(
+          "Nearby Search Error",
+          `Could not fetch ${placeType} locations. Error: ${
+            data.error_message || data.status
+          }`
+        );
+      }
+    } catch (error) {
+      console.error(`Error fetching nearby ${placeType}:`, error);
+      Alert.alert(
+        "Network Error",
+        `Failed to fetch nearby ${placeType}. Check your internet connection.`
+      );
+    } finally {
+      setIsLoadingNearby(false);
+    }
+  };
+
+  /**
+   * Starts navigation to the nearest place found.
+   */
+  const startNavigationToNearestPlace = () => {
+    if (nearestPlaceDetails && location) {
+      // Pass the coordinate directly to calculateAndShowRoutes
+      calculateAndShowRoutes(nearestPlaceDetails.coordinate);
+      setShowNearestPlaceModal(false); // Close the modal
+    } else {
+      Alert.alert("Error", "No nearest place selected for navigation.");
+    }
+  };
+
+  /**
    * Initiates actual navigation. This is called from RouteOptionsDisplay.
    */
   const startActualNavigation = () => {
@@ -794,6 +1045,10 @@ const SafeMaps = () => {
     setDirections([]);
     setRouteOptions([]);
     setSelectedRouteIndex(0);
+    setNearbyPoliceStations([]); // Clear nearby markers on stop navigation
+    setNearbyHospitals([]); // Clear nearby markers on stop navigation
+    setNearestPlaceDetails(null); // Clear nearest place details on stop navigation
+    setShowNearestPlaceModal(false); // Ensure modal is closed
     // Optionally, reset map to current location
     if (location && selectedLocation) {
       mapRef.current?.animateToRegion({
@@ -877,13 +1132,21 @@ const SafeMaps = () => {
             setShowLongPressInstruction(false); // Hide instruction on long press
           }}
           onMyLocationPress={getCurrentLocation}
+          nearbyPoliceStations={nearbyPoliceStations}
+          nearbyHospitals={nearbyHospitals}
         />
 
         {/* Loading Overlay for route calculation */}
         <LoadingOverlay
-          isVisible={isCalculatingRoute}
-          message="Finding safest route..."
-          subMessage="Avoiding dangerous areas"
+          isVisible={isCalculatingRoute || isLoadingNearby}
+          message={
+            isCalculatingRoute
+              ? "Finding safest route..."
+              : "Finding nearby places..."
+          }
+          subMessage={
+            isCalculatingRoute ? "Avoiding dangerous areas" : "Please wait..."
+          }
         />
 
         {/* Navigation Header */}
@@ -900,10 +1163,8 @@ const SafeMaps = () => {
           selectedRouteIndex={selectedRouteIndex}
           onSelectRoute={selectRouteOption}
           onViewDirections={() => setShowDirectionsModal(true)}
-          // Pass the new startActualNavigation function
           onStartNavigation={startActualNavigation}
-          // Pass the function to trigger re-calculation when a new review is added
-          onRecalculateRoute={calculateAndShowRoutes} // Re-use calculateAndShowRoutes
+          onRecalculateRoute={calculateAndShowRoutes} // This will now need selectedLocation to be set externally
           safeRouteOnly={safeRouteOnly}
           onToggleSafeRouteOnly={() => setSafeRouteOnly((prev) => !prev)}
         />
@@ -913,8 +1174,10 @@ const SafeMaps = () => {
           showBottomSheet={showBottomSheet}
           bottomSheetAnim={bottomSheetAnim}
           selectedLocation={selectedLocation}
-          onStartNavigation={calculateAndShowRoutes} // Now calls calculateAndShowRoutes
-          onClose={() => animateBottomSheet(false)} // Close bottom sheet
+          onStartNavigation={() =>
+            calculateAndShowRoutes(selectedLocation.coordinate)
+          } // MODIFIED: Pass coordinate directly
+          onClose={() => animateBottomSheet(false)}
         />
 
         {/* Safety Review Modal */}
@@ -933,10 +1196,23 @@ const SafeMaps = () => {
           onClose={() => setShowDirectionsModal(false)}
         />
 
-        {/* NEW: Long Press Instruction */}
+        {/* Long Press Instruction */}
         <LongPressInstruction
           isVisible={showLongPressInstruction}
           onClose={() => setShowLongPressInstruction(false)}
+        />
+
+        {/* Nearest Place Confirmation Modal */}
+        <NearestPlaceConfirmationModal
+          isVisible={showNearestPlaceModal}
+          placeDetails={nearestPlaceDetails}
+          onConfirmNavigation={startNavigationToNearestPlace}
+          onCancel={() => {
+            setShowNearestPlaceModal(false);
+            setNearestPlaceDetails(null); // Clear details if user cancels
+            setNearbyPoliceStations([]); // Clear markers if user cancels
+            setNearbyHospitals([]); // Clear markers if user cancels
+          }}
         />
 
         {/* Emergency Button */}

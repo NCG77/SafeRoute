@@ -19,8 +19,10 @@ const { height } = Dimensions.get("window");
  * Props:
  * - showBottomSheet: Boolean to control visibility.
  * - bottomSheetAnim: Animated value for controlling slide-up animation.
- * - selectedLocation: Object containing location details (title, subtitle).
+ * - selectedLocation: Object containing location details (title, subtitle, coordinate).
  * - onStartNavigation: Function to initiate navigation to the selected location.
+ * - onSaveLocation: Function to save the selected location. (NEW)
+ * - onShareLocation: Function to share the user's current location. (NEW)
  * - onClose: Function to close the bottom sheet.
  */
 const BottomSheet = ({
@@ -28,8 +30,14 @@ const BottomSheet = ({
   bottomSheetAnim,
   selectedLocation,
   onStartNavigation,
+  onSaveLocation, // NEW PROP
+  onShareLocation, // NEW PROP
   onClose,
 }) => {
+  if (showBottomSheet !== true || !selectedLocation) {
+    return null;
+  }
+
   return (
     <Animated.View
       style={[
@@ -48,7 +56,6 @@ const BottomSheet = ({
     >
       <TouchableOpacity style={styles.bottomSheetHandle} onPress={onClose} />
       <View style={styles.bottomSheetContent}>
-        {/* Use optional chaining for selectedLocation properties to prevent errors if it's temporarily null */}
         <Text style={styles.bottomSheetTitle}>{selectedLocation?.title}</Text>
         <Text style={styles.bottomSheetSubtitle}>
           {selectedLocation?.subtitle}
@@ -63,20 +70,29 @@ const BottomSheet = ({
             <Text style={styles.actionButtonLabel}>Safe Route</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>📞</Text>
-            <Text style={styles.actionButtonLabel}>Call</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton}>
+          {/* NEW: Save Button */}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => onSaveLocation(selectedLocation)}
+          >
             <Text style={styles.actionButtonText}>💾</Text>
             <Text style={styles.actionButtonLabel}>Save</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
+          {/* NEW: Share Button */}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={onShareLocation}
+          >
             <Text style={styles.actionButtonText}>📤</Text>
             <Text style={styles.actionButtonLabel}>Share</Text>
           </TouchableOpacity>
+
+          {/* Removed Call button as per your previous instruction */}
+          {/* <TouchableOpacity style={styles.actionButton}>
+            <Text style={styles.actionButtonText}>📞</Text>
+            <Text style={styles.actionButtonLabel}>Call</Text>
+          </TouchableOpacity> */}
         </View>
       </View>
     </Animated.View>
@@ -86,7 +102,7 @@ const BottomSheet = ({
 const styles = StyleSheet.create({
   bottomSheet: {
     position: "absolute",
-    bottom: 60,
+    bottom: 70,
     left: 0,
     right: 0,
     backgroundColor: "white",

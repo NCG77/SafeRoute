@@ -64,7 +64,6 @@ if (getApps().length === 0) {
     firebaseApp = initializeApp(backgroundFirebaseConfig);
     db = getFirestore(firebaseApp);
     auth = getAuth(firebaseApp);
-    console.log("Firebase initialized in background context.");
   } else {
     console.error(
       "Firebase config not found in process.env for background task."
@@ -75,7 +74,6 @@ if (getApps().length === 0) {
   firebaseApp = getApps()[0];
   db = getFirestore(firebaseApp);
   auth = getAuth(firebaseApp);
-  console.log("Firebase accessed from existing app instance.");
 }
 
 // Listen for auth state changes globally to update currentFirebaseUserId
@@ -84,15 +82,8 @@ if (auth) {
   auth.onAuthStateChanged((user) => {
     if (user) {
       currentFirebaseUserId = user.uid;
-      console.log(
-        "Firebase Auth State Changed (Global Task Scope): User is",
-        user.uid
-      );
     } else {
       currentFirebaseUserId = null;
-      console.log(
-        "Firebase Auth State Changed (Global Task Scope): User is signed out."
-      );
     }
   });
 } else {
@@ -138,18 +129,6 @@ TaskManager.defineTask(
             await setDoc(doc(db, "live_locations", userId), locationData, {
               merge: true,
             });
-
-            console.log(
-              "Live location sent to Firestore for user:",
-              userId,
-              "Location:",
-              latestLocation.coords.latitude,
-              latestLocation.coords.longitude
-            );
-            console.log(
-              "Shared with:",
-              sharingWithContacts.map((c) => c.name).join(", ") || "General"
-            );
           } catch (firestoreError) {
             console.error(
               "Failed to send location to Firestore:",
@@ -322,9 +301,6 @@ const LiveLocationShareScreen = () => {
   // Effect to clean up location watcher on unmount (MODIFIED: Only stop if not sharing)
   useEffect(() => {
     return () => {
-      // This effect runs when component unmounts. We only want to stop the task
-      // if the user explicitly turned it off, or if the app is truly closing.
-      // If isSharing is true, it means the user intends for it to continue in background.
       if (isSharing) {
         console.log(
           "LiveLocationShareScreen unmounting, sharing is active. Task will continue."
@@ -335,9 +311,6 @@ const LiveLocationShareScreen = () => {
           (isRegistered) => {
             if (isRegistered) {
               Location.stopLocationUpdatesAsync(LOCATION_TRACKING_TASK);
-              console.log(
-                "LiveLocationShareScreen unmounting, sharing was off. Task stopped."
-              );
             }
           }
         );
@@ -345,7 +318,6 @@ const LiveLocationShareScreen = () => {
     };
   }, [isSharing]); // Depend on isSharing state
 
-  // Use useFocusEffect to get current location for display when screen is focused
   useFocusEffect(
     useCallback(() => {
       let intervalId: NodeJS.Timeout | null = null;

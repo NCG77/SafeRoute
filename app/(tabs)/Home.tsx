@@ -199,7 +199,7 @@ const HomePage = () => {
             >
               Helpline Numbers
             </Button>
-            {/* Police Station Near me button (already modified) */}
+
             <Button
               mode="contained"
               onPress={() =>
@@ -212,7 +212,7 @@ const HomePage = () => {
             >
               Police Station Near me
             </Button>
-            {/* Hospital Near me button (already modified) */}
+
             <Button
               mode="contained"
               onPress={() =>

@@ -1187,7 +1187,7 @@ const SafeMaps = () => {
       Alert.alert("Error", "No nearest place selected for navigation.");
       return;
     }
-    calculateAndShowRoutes(nearestPlaceDetails.coordinate, true); // Show bottom sheet for nearby search
+    calculateAndShowRoutes(nearestPlaceDetails.coordinate, false); // MODIFIED: Pass 'false' here
     setShowNearestPlaceModal(false); // Close the modal
   };
 

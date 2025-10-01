@@ -1,192 +1,110 @@
-// components/maps/MapDisplay.js
-import { useEffect } from "react";
+// components/maps/MapDisplay.web.js
+import React, { useEffect, useRef } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import MapView, {
-  Circle,
-  Marker,
-  Polyline,
-  PROVIDER_GOOGLE,
-} from "react-native-maps";
 import { GlobalStyles } from "../../constants/GlobalStyles";
 
 /**
- * MapDisplay Component
- * Renders the map with current location, selected location, safety reviews,
- * dangerous areas, and the calculated route.
- *
- * Props:
- * - mapRef: React ref for the MapView component.
- * - initialRegion: Initial region to display on the map.
- * - selectedLocation: Object containing coordinate, title, subtitle for a selected place.
- * - safetyReviews: Array of safety review objects.
- * - dangerousAreas: Array of dangerous area objects (latitude, longitude, radius, severity).
- * - routeCoordinates: Array of coordinates for the route polyline.
- * - routeColor: Color for the route polyline.
- * - onLongPress: Function to call when the map is long-pressed (for adding reviews).
- * - onMyLocationPress: Function to call when "My Location" button is pressed.
- * - nearbyPoliceStations: Array of nearby police station objects.
- * - nearbyHospitals: Array of nearby hospital objects.
+ * MapDisplay Component - Web Version
+ * This is a web-compatible implementation that doesn't use react-native-maps
+ * since it's not compatible with web platforms.
  */
 const MapDisplay = ({
   mapRef,
   initialRegion,
   selectedLocation,
-  safetyReviews,
-  dangerousAreas,
-  routeCoordinates,
+  safetyReviews = [],
+  dangerousAreas = [],
+  routeCoordinates = [],
   routeColor,
   onLongPress,
   onMyLocationPress,
-  nearbyPoliceStations,
-  nearbyHospitals,
+  nearbyPoliceStations = [],
+  nearbyHospitals = [],
 }) => {
-  // Debugging logs for incoming props
+  const webMapRef = useRef(null);
+
   useEffect(() => {
-    console.log(
-      "MapDisplay - received nearbyPoliceStations count:",
-      nearbyPoliceStations.length
-    );
-    console.log(
-      "MapDisplay - received nearbyHospitals count:",
-      nearbyHospitals.length
-    );
-  }, [nearbyPoliceStations, nearbyHospitals]);
+    console.log("MapDisplay Web: Component mounted");
+    console.log("Initial region:", initialRegion);
+    console.log("Selected location:", selectedLocation);
+    console.log("Safety reviews count:", safetyReviews.length);
+    console.log("Dangerous areas count:", dangerousAreas.length);
+    console.log("Route coordinates count:", routeCoordinates.length);
+    console.log("Nearby police stations count:", nearbyPoliceStations.length);
+    console.log("Nearby hospitals count:", nearbyHospitals.length);
+  }, []);
 
-  // Effect to fit map to nearby markers when they appear
-  useEffect(() => {
-    const allNearbyCoords = [];
-    if (nearbyPoliceStations.length > 0) {
-      allNearbyCoords.push(...nearbyPoliceStations.map((p) => p.coordinate));
-    }
-    if (nearbyHospitals.length > 0) {
-      allNearbyCoords.push(...nearbyHospitals.map((p) => p.coordinate));
-    }
-
-    if (mapRef.current && allNearbyCoords.length > 0) {
-      // Temporarily remove current location from fitToCoordinates to see if it helps
-      // if (initialRegion?.latitude && initialRegion?.longitude) {
-      //   allNearbyCoords.push({latitude: initialRegion.latitude, longitude: initialRegion.longitude});
-      // }
-
-      mapRef.current.fitToCoordinates(allNearbyCoords, {
-        edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, // Adjust padding as needed
-        animated: true,
+  const handleWebMapClick = () => {
+    if (onLongPress) {
+      onLongPress({
+        nativeEvent: {
+          coordinate: initialRegion || { latitude: 0, longitude: 0 }
+        }
       });
-      console.log(
-        "MapDisplay: Attempting to fit map to coordinates for",
-        allNearbyCoords.length,
-        "places."
-      );
     }
-  }, [nearbyPoliceStations, nearbyHospitals]); // Removed initialRegion from dependency array for this specific effect
+  };
 
   return (
     <View style={styles.mapContainer}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={initialRegion}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        showsTraffic={true}
-        showsBuildings={true}
-        showsIndoors={true}
-        onLongPress={onLongPress}
+      <View 
+        style={styles.webMapPlaceholder} 
+        ref={webMapRef}
+        onClick={handleWebMapClick}
       >
-        {/* Selected location marker */}
+        <Text style={styles.placeholderText}>
+          🗺️ Web Map View
+        </Text>
+        <Text style={styles.placeholderSubtext}>
+          Interactive map features are optimized for mobile.
+          {"\n"}
+          For full functionality, please use the mobile app.
+        </Text>
+        
+        {initialRegion && (
+          <Text style={styles.infoText}>
+            📍 Current Region: {initialRegion.latitude?.toFixed(4)}, {initialRegion.longitude?.toFixed(4)}
+          </Text>
+        )}
+        
         {selectedLocation && (
-          <Marker
-            coordinate={selectedLocation.coordinate}
-            title={selectedLocation.title}
-            pinColor={GlobalStyles.colors.primary}
-          />
+          <Text style={styles.infoText}>
+            🎯 Selected: {selectedLocation.title || "Unknown location"}
+          </Text>
         )}
-
-        {/* Safety review markers */}
-        {safetyReviews.map((review) => (
-          <Marker
-            key={`review-${review.id}`}
-            coordinate={{
-              latitude: review.latitude,
-              longitude: review.longitude,
-            }}
-            title={`Safety: ${review.rating}/5`}
-            description={review.comment}
-            pinColor={
-              review.rating <= 2
-                ? GlobalStyles.colors.danger
-                : review.rating >= 4
-                ? GlobalStyles.colors.success
-                : GlobalStyles.colors.warning
-            }
-          />
-        ))}
-
-        {/* Dangerous area circles */}
-        {dangerousAreas.map((area, index) => (
-          <Circle
-            key={`danger-${index}`}
-            center={{ latitude: area.latitude, longitude: area.longitude }}
-            radius={area.radius}
-            strokeColor="rgba(255, 68, 68, 0.6)"
-            fillColor="rgba(255, 68, 68, 0.2)"
-            strokeWidth={2}
-          />
-        ))}
-
-        {/* Route polyline with safety color */}
+        
+        {safetyReviews.length > 0 && (
+          <Text style={styles.infoText}>
+            🛡️ Safety Reviews: {safetyReviews.length}
+          </Text>
+        )}
+        
+        {dangerousAreas.length > 0 && (
+          <Text style={styles.infoText}>
+            ⚠️ Dangerous Areas: {dangerousAreas.length}
+          </Text>
+        )}
+        
         {routeCoordinates.length > 0 && (
-          <Polyline
-            coordinates={routeCoordinates}
-            strokeColor={routeColor}
-            strokeWidth={6}
-            zIndex={2}
-            lineCap="round"
-            lineJoin="round"
-          />
+          <Text style={styles.infoText}>
+            🛣️ Route Points: {routeCoordinates.length}
+          </Text>
         )}
-
-        {/* Markers for nearby Police Stations */}
-        {nearbyPoliceStations.map((place) => {
-          return (
-            <Marker
-              key={`police-${place.id}`}
-              coordinate={place.coordinate}
-              title={place.title}
-              description={place.subtitle}
-              pinColor={GlobalStyles.colors.secondary} // Purple
-            />
-          );
-        })}
-
-        {/* Markers for nearby Hospitals */}
-        {nearbyHospitals.map((place) => {
-          // NEW: Log each hospital marker being rendered
-          console.log(
-            "Rendering Hospital Marker:",
-            place.title,
-            place.coordinate
-          );
-          return (
-            <Marker
-              key={`hospital-${place.id}`}
-              coordinate={place.coordinate}
-              title={place.title}
-              description={place.subtitle}
-              pinColor={GlobalStyles.colors.success} // Green
-            />
-          );
-        })}
-      </MapView>
-
-      {/* My Location Button */}
-      <TouchableOpacity
-        style={styles.myLocationButton}
-        onPress={onMyLocationPress}
-      >
-        <Text style={styles.myLocationIcon}>📍</Text>
-      </TouchableOpacity>
+        
+        {(nearbyPoliceStations.length > 0 || nearbyHospitals.length > 0) && (
+          <Text style={styles.infoText}>
+            🚔 Police: {nearbyPoliceStations.length} | 🏥 Hospitals: {nearbyHospitals.length}
+          </Text>
+        )}
+        
+        {onMyLocationPress && (
+          <TouchableOpacity
+            style={styles.myLocationButton}
+            onPress={onMyLocationPress}
+          >
+            <Text style={styles.myLocationButtonText}>📍 My Location</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 };
@@ -195,23 +113,46 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
   },
-  map: {
+  webMapPlaceholder: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f0f0f0",
+    padding: 20,
+    borderRadius: 8,
+  },
+  placeholderText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  placeholderSubtext: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  infoText: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 8,
+    textAlign: "center",
+    paddingHorizontal: 10,
   },
   myLocationButton: {
-    position: "absolute",
-    bottom: 150,
-    right: 20,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "white",
-    alignItems: "center",
-    justifyContent: "center",
-    ...GlobalStyles.shadow,
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
   },
-  myLocationIcon: {
-    fontSize: 20,
+  myLocationButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

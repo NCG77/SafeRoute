@@ -43,6 +43,10 @@ export default function RootLayout() {
               name="LiveLocationShareScreen"
               options={{ headerShown: false, presentation: "modal" }}
             />
+            <Stack.Screen
+              name="SavedPlacesScreen"
+              options={{ title: "Saved Places" }}
+            />
           </Stack>
         </ThemeProvider>
       </SafeAreaProvider>

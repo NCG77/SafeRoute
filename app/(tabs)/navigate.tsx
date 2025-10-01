@@ -1,5 +1,12 @@
-// SafeMaps.js (Main Application Component - formerly App.js)
-import { useNavigation, useRoute } from "@react-navigation/native";
+// SafeMaps.js (Main Application Component)
+
+import { MaterialIcons } from "@expo/vector-icons"; // For the saved places icon
+import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage for saving locations
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 import Constants from "expo-constants";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -7,26 +14,34 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Platform,
   SafeAreaView,
-  StatusBar,
-  Text,
+  Share,
+  StatusBar, // For platform-specific styling
+  StyleSheet,
+  Text, // Import Share API for sharing locations
+  TouchableOpacity,
+  View,
 } from "react-native";
 
+// Import all custom components
 import BottomSheet from "../../components/maps/BottomSheet";
 import DirectionsModal from "../../components/maps/DirectionModal";
 import LoadingOverlay from "../../components/maps/LoadingOverlay";
 import LongPressInstruction from "../../components/maps/LongPressInstruction";
 import MapDisplay from "../../components/maps/MapDisplay";
 import NavigationHeader from "../../components/maps/NavigationHeader";
-import NearestPlaceConfirmationModal from "../../components/maps/NearestPlaceConfirmationModal"; // NEW: Import confirmation modal
+import NearestPlaceConfirmationModal from "../../components/maps/NearestPlaceConfirmationModal";
 import RouteOptionsDisplay from "../../components/maps/RouteOptionDisplay";
 import SafetyReviewModal from "../../components/maps/SafetyReviewModal";
 import SearchBar from "../../components/maps/SearchBar";
 
+// Import global styles
 import { GlobalStyles } from "../../constants/GlobalStyles";
 
 const { width, height } = Dimensions.get("window");
 
+// --- Interface Definitions for better type safety (if using TypeScript) ---
 interface Coordinate {
   latitude: number;
   longitude: number;
@@ -60,72 +75,107 @@ interface DangerousArea {
 interface RouteInfo {
   distance: number;
   duration: number;
-  safety: any;
+  safety: any; // Safety analysis object
+  color: string; // Color based on safety
+  title: string; // Route title (e.g., Primary Route, Alternative Route)
+  description: string; // Distance and duration string
+  directions: any[]; // Turn-by-turn directions
 }
 
 const SafeMaps = () => {
-  // Get route parameters
+  // --- Navigation Hooks ---
   const route = useRoute();
   const navigation = useNavigation();
   const { showPoliceStations, showHospitals } = route.params || {};
 
-  // State for location and map
-  const [location, setLocation] = useState(null);
-  const [mapRegion, setMapRegion] = useState(null); // To control map's visible region
-  const mapRef = useRef(null);
-  const [currentRegionName, setCurrentRegionName] = useState(null); // Stores current city/region name (kept for potential future use)
+  // --- State for Location and Map ---
+  const [location, setLocation] = useState<Location.LocationObject | null>(
+    null
+  );
+  const [isLocationReady, setIsLocationReady] = useState<boolean>(false); // NEW: Track if location is ready
+  const [mapRegion, setMapRegion] = useState<any>(null); // Map's visible region
+  const mapRef = useRef<any>(null); // Reference to MapView component
+  const [currentRegionName, setCurrentRegionName] = useState<string | null>(
+    null
+  ); // Current city/region name
 
-  // State for search functionality
-  const [searchQuery, setSearchQuery] = useState("");
+  // NEW: State for location watcher subscription
+  const [locationWatcher, setLocationWatcher] =
+    useState<Location.LocationSubscription | null>(null);
+
+  // --- State for Search Functionality ---
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
   const [selectedLocation, setSelectedLocation] = useState<SearchResult | null>(
     null
   );
 
+  // --- State for Route and Navigation ---
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
-  const [routeOptions, setRouteOptions] = useState<any[]>([]);
-  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
-  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
-  const [isNavigationMode, setIsNavigationMode] = useState(false);
-  const [directions, setDirections] = useState<any[]>([]);
-  const [showDirectionsModal, setShowDirectionsModal] = useState(false);
+  const [routeOptions, setRouteOptions] = useState<any[]>([]); // Array of potential routes
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState<boolean>(false);
+  const [isNavigationMode, setIsNavigationMode] = useState<boolean>(false);
+  const [directions, setDirections] = useState<any[]>([]); // Turn-by-turn directions
+  const [showDirectionsModal, setShowDirectionsModal] =
+    useState<boolean>(false);
 
+  // NEW: State to hold navigation params for a pending route calculation
+  const [pendingNavigationRoute, setPendingNavigationRoute] = useState<
+    any | null
+  >(null);
+
+  // --- State for Safety Features ---
   const [safetyReviews, setSafetyReviews] = useState<SafetyReview[]>([]);
   const [dangerousAreas, setDangerousAreas] = useState<DangerousArea[]>([]);
-  const [safeRouteOnly, setSafeRouteOnly] = useState(true);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewLocation, setReviewLocation] = useState(null);
+  const [safeRouteOnly, setSafeRouteOnly] = useState<boolean>(true); // Toggle for prioritizing safe routes
+  const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
+  const [reviewLocation, setReviewLocation] = useState<Coordinate | null>(null); // Location for new review
 
-  // State for long press instruction visibility
+  // --- State for UI Overlays ---
   const [showLongPressInstruction, setShowLongPressInstruction] =
-    useState(false);
+    useState<boolean>(false);
 
-  // State for nearby police stations and hospitals
-  const [nearbyPoliceStations, setNearbyPoliceStations] = useState([]);
-  const [nearbyHospitals, setNearbyHospitals] = useState([]);
-  const [isLoadingNearby, setIsLoadingNearby] = useState(false);
+  // --- State for Nearby Places (Police/Hospital) ---
+  const [nearbyPoliceStations, setNearbyPoliceStations] = useState<
+    SearchResult[]
+  >([]);
+  const [nearbyHospitals, setNearbyHospitals] = useState<SearchResult[]>([]);
+  const [isLoadingNearby, setIsLoadingNearby] = useState<boolean>(false);
 
-  // NEW: State for the nearest place details and modal visibility
-  const [nearestPlaceDetails, setNearestPlaceDetails] = useState(null);
-  const [showNearestPlaceModal, setShowNearestPlaceModal] = useState(false);
+  // --- State for Nearest Place Confirmation Modal ---
+  const [nearestPlaceDetails, setNearestPlaceDetails] = useState<any>(null);
+  const [showNearestPlaceModal, setShowNearestPlaceModal] =
+    useState<boolean>(false);
 
-  // Animation for bottom sheet
+  // --- Animation for Bottom Sheet ---
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
-  const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const [showBottomSheet, setShowBottomSheet] = useState<boolean>(false);
 
+  // --- API Keys ---
   const GOOGLE_PLACES_API_KEY =
     process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ||
     Constants.expoConfig?.extra?.googlePlacesApiKey ||
     Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
     Constants.expoConfig?.ios?.config?.googleMapsApiKey;
 
+  const GOOGLE_DIRECTIONS_API_KEY =
+    process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY ||
+    Constants.expoConfig?.extra?.googleDirectionsApiKey ||
+    Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
+    Constants.expoConfig?.ios?.config?.googleMapsApiKey;
+
+  // --- Effects ---
+
+  // Initial location and safety data load on component mount
   useEffect(() => {
     getCurrentLocation();
     loadSafetyData();
   }, []);
 
+  // Set initial map region and show long press instruction when location is available
   useEffect(() => {
     if (location) {
       setMapRegion({
@@ -147,7 +197,7 @@ const SafeMaps = () => {
     }
   }, [location]);
 
-  // Effect to trigger nearby search based on route params
+  // Effect to trigger nearby search based on navigation route parameters (from Home screen)
   useEffect(() => {
     if (location && (showPoliceStations || showHospitals)) {
       // Clear any existing route/search results when a nearby search is triggered
@@ -177,7 +227,82 @@ const SafeMaps = () => {
     }
   }, [location, showPoliceStations, showHospitals, navigation]);
 
-  // --- Location and Safety Data Management ---
+  // Effect to capture navigation parameters from SavedPlacesScreen
+  useFocusEffect(
+    useCallback(() => {
+      if (route.params?.selectedPlaceForMap) {
+        const {
+          selectedPlaceForMap,
+          selectedPlaceTitle,
+          selectedPlaceSubtitle,
+        } = route.params;
+
+        // Store the params in a state variable to be processed once location is ready
+        setPendingNavigationRoute({
+          coordinate: selectedPlaceForMap,
+          title: selectedPlaceTitle,
+          subtitle: selectedPlaceSubtitle,
+        });
+
+        // Clear the params immediately so it's not re-processed on subsequent focuses
+        navigation.setParams({
+          selectedPlaceForMap: undefined,
+          selectedPlaceTitle: undefined,
+          selectedPlaceSubtitle: undefined,
+        });
+      }
+    }, [route.params, navigation]) // Dependencies for useFocusEffect
+  );
+
+  // NEW EFFECT: Process pending navigation route once location is ready
+  useEffect(() => {
+    if (isLocationReady && pendingNavigationRoute) {
+      const { coordinate, title, subtitle } = pendingNavigationRoute;
+
+      // Clear any active routes or modals to prepare for new display
+      stopNavigation();
+      setShowBottomSheet(false);
+      setShowNearestPlaceModal(false);
+
+      // Set the selected location and animate map to it
+      setSelectedLocation({
+        id: `saved-${coordinate.latitude}-${coordinate.longitude}`, // Create a unique ID for saved place
+        title: title || "Saved Place",
+        subtitle: subtitle || "",
+        coordinate: coordinate,
+      });
+
+      mapRef.current?.animateToRegion({
+        latitude: coordinate.latitude,
+        longitude: coordinate.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+
+      // Pass false to showBottomSheetOnFinish so it doesn't automatically pop up the bottom sheet
+      calculateAndShowRoutes(coordinate, false);
+
+      // Clear the pending route after processing
+      setPendingNavigationRoute(null);
+    }
+  }, [
+    isLocationReady,
+    pendingNavigationRoute,
+    stopNavigation,
+    animateBottomSheet,
+    calculateAndShowRoutes,
+  ]);
+
+  // Effect to clean up location watcher when component unmounts
+  useEffect(() => {
+    return () => {
+      if (locationWatcher) {
+        locationWatcher.remove();
+      }
+    };
+  }, [locationWatcher]);
+
+  // --- Location and Safety Data Management Functions ---
 
   /**
    * Fetches the current device location and requests permissions.
@@ -186,6 +311,7 @@ const SafeMaps = () => {
   const getCurrentLocation = async () => {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
+
       if (status !== "granted") {
         Alert.alert(
           "Permission denied",
@@ -197,8 +323,11 @@ const SafeMaps = () => {
       let currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
-      setLocation(currentLocation);
 
+      setLocation(currentLocation);
+      setIsLocationReady(true); // NEW: Set location as ready
+
+      // Reverse geocode to get current city/region name
       const reverseGeocode = await Location.reverseGeocodeAsync(
         currentLocation.coords
       );
@@ -210,13 +339,27 @@ const SafeMaps = () => {
           setCurrentRegionName(region);
         }
       }
+
+      if (mapRef.current && currentLocation) {
+        mapRef.current.animateToRegion({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        });
+      }
     } catch (error) {
+      console.error("Failed to get current location:", error);
       Alert.alert("Error", "Failed to get current location. Please try again.");
+      setIsLocationReady(false); // Ensure it's false on error
     }
   };
 
+  /**
+   * Loads mock safety review data. In a real application, this would fetch from a backend.
+   */
   const loadSafetyData = () => {
-    const mockReviews = [
+    const mockReviews: SafetyReview[] = [
       // Safe Areas in Bhopal (Rating 4-5)
       {
         id: 1,
@@ -336,18 +479,23 @@ const SafeMaps = () => {
 
     setSafetyReviews(mockReviews);
 
+    // Identify dangerous areas from mock reviews
     const dangerous = mockReviews
       .filter((review) => review.rating <= 2)
       .map((review) => ({
         latitude: review.latitude,
         longitude: review.longitude,
-        radius: 500,
+        radius: 500, // Radius for dangerous area visualization
         severity: review.rating,
       }));
 
     setDangerousAreas(dangerous);
   };
 
+  /**
+   * Submits a new safety review and updates the state.
+   * In a real app, this would send data to a backend.
+   */
   const submitSafetyReview = useCallback(
     (
       latitude: number,
@@ -356,7 +504,7 @@ const SafeMaps = () => {
       comment: string,
       category: string
     ) => {
-      const newReview = {
+      const newReview: SafetyReview = {
         id: Date.now(),
         latitude,
         longitude,
@@ -364,7 +512,7 @@ const SafeMaps = () => {
         comment,
         category,
         timestamp: Date.now(),
-        userId: "current_user", // Replace with actual user ID
+        userId: "current_user", // Placeholder: Replace with actual user ID
       };
 
       const updatedReviews = [...safetyReviews, newReview];
@@ -372,7 +520,7 @@ const SafeMaps = () => {
 
       // Update dangerous areas if the new review indicates danger
       if (rating <= 2) {
-        const newDangerousArea = {
+        const newDangerousArea: DangerousArea = {
           latitude,
           longitude,
           radius: 500,
@@ -392,6 +540,10 @@ const SafeMaps = () => {
 
   // --- Search Functionality ---
 
+  /**
+   * Searches for places using Google Places Text Search API.
+   * @param {string} query - The search query string.
+   */
   const searchPlaces = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -399,29 +551,25 @@ const SafeMaps = () => {
       return;
     }
 
-    // Hide instruction when search starts
-    setShowLongPressInstruction(false);
+    setShowLongPressInstruction(false); // Hide instruction when search starts
 
     if (!GOOGLE_PLACES_API_KEY) {
       Alert.alert(
         "API Key Missing",
-        "Google Places API key is not configured."
+        "Google Places API key is not configured. Please add it to your app.json extra field."
       );
       console.error("Google Places API key is missing.");
       return;
     }
 
     try {
-      // Use Google Places Text Search API
       const PLACE_SEARCH_URL =
         "https://maps.googleapis.com/maps/api/place/textsearch/json";
 
-      // Bias results towards current location (optional, but highly recommended for relevance)
-      // radius is in meters, 50000m = 50km
+      // Bias results towards current location for relevance
       const locationBias = location
         ? `&locationbias=circle:50000@${location.coords.latitude},${location.coords.longitude}`
         : "";
-      // You can also use &strictbounds to only return results within the viewport/circle, but it's often too restrictive.
 
       const url = `${PLACE_SEARCH_URL}?query=${encodeURIComponent(
         query
@@ -431,16 +579,16 @@ const SafeMaps = () => {
       const data = await response.json();
 
       if (data.status === "OK") {
-        const formattedResults = data.results
-          .slice(0, 5)
-          .map((place: any, index: number) => ({
-            id: place.place_id, // Use place_id for unique identification
+        const formattedResults: SearchResult[] = data.results
+          .slice(0, 5) // Limit to top 5 results
+          .map((place: any) => ({
+            id: place.place_id, // Unique ID from Google Places
             title: place.name,
             subtitle:
               place.formatted_address ||
               `${place.vicinity || ""}, ${
                 place.plus_code?.compound_code || ""
-              }`, // More detailed address
+              }`,
             coordinate: {
               latitude: place.geometry.location.lat,
               longitude: place.geometry.location.lng,
@@ -471,6 +619,10 @@ const SafeMaps = () => {
     }
   };
 
+  /**
+   * Selects a search result, updates state, animates map, and shows bottom sheet.
+   * @param {SearchResult} result - The selected search result object.
+   */
   const selectSearchResult = (result: SearchResult) => {
     setSearchQuery(result.title);
     setShowSearchResults(false);
@@ -484,6 +636,10 @@ const SafeMaps = () => {
     });
   };
 
+  /**
+   * Animates the bottom sheet up or down.
+   * @param {boolean} show - True to show, false to hide.
+   */
   const animateBottomSheet = (show: boolean) => {
     Animated.timing(bottomSheetAnim, {
       toValue: show ? 1 : 0,
@@ -495,8 +651,16 @@ const SafeMaps = () => {
     if (show) setShowBottomSheet(true);
   };
 
+  // --- Utility Functions ---
+
+  /**
+   * Decodes an encoded polyline string into an array of coordinates.
+   * Used for Google Directions API route polylines.
+   * @param {string} encoded - The encoded polyline string.
+   * @returns {Coordinate[]} Array of {latitude, longitude} objects.
+   */
   const decodePolyline = (encoded: string): Coordinate[] => {
-    const coordinates = [];
+    const coordinates: Coordinate[] = [];
     let index = 0;
     let lat = 0;
     let lng = 0;
@@ -530,8 +694,8 @@ const SafeMaps = () => {
 
   /**
    * Calculates distance between two coordinates using Haversine formula.
-   * @param {object} origin - {latitude, longitude}
-   * @param {object} destination - {latitude, longitude}
+   * @param {Coordinate} origin - {latitude, longitude}
+   * @param {Coordinate} destination - {latitude, longitude}
    * @returns {number} Distance in kilometers.
    */
   const calculateDistance = (
@@ -562,13 +726,12 @@ const SafeMaps = () => {
    */
   const getAreaSafetyScore = useCallback(
     (latitude: number, longitude: number, radius = 500) => {
-      // Increased radius to 500m
       const nearbyReviews = safetyReviews.filter((review) => {
         const distance = calculateDistance(
           { latitude, longitude },
           { latitude: review.latitude, longitude: review.longitude }
         );
-        return distance <= radius / 1000; // Convert radius to km
+        return distance <= radius / 1000; // Convert radius to km for comparison
       });
 
       if (nearbyReviews.length === 0) {
@@ -590,7 +753,7 @@ const SafeMaps = () => {
 
   /**
    * Analyzes the safety of an entire route by checking segments.
-   * @param {Array<object>} coordinates - Array of route coordinates.
+   * @param {Coordinate[]} coordinates - Array of route coordinates.
    * @returns {object} Overall safety status, danger percentage, and segment-wise safety.
    */
   const analyzeRouteSafety = useCallback(
@@ -601,9 +764,8 @@ const SafeMaps = () => {
 
       const segmentSafety = [];
 
-      // Analyze more frequently along the route for better accuracy
+      // Analyze more frequently along the route for better accuracy (every 5th coordinate)
       for (let i = 0; i < coordinates.length; i += 5) {
-        // Changed from i += 10 to i += 5
         const coord = coordinates[i];
         const safety = getAreaSafetyScore(coord.latitude, coord.longitude, 500); // Check within 500m radius
 
@@ -623,16 +785,17 @@ const SafeMaps = () => {
         totalSegments > 0 ? (totalDangerousSegments / totalSegments) * 100 : 0;
 
       let overallSafety = "safe";
-      // MODIFIED: Lowered threshold for 'dangerous' to be more sensitive
-      if (totalDangerousSegments > 0 || dangerPercentage >= 1)
+      // If even one dangerous segment, or 1% of segments are dangerous, mark as dangerous
+      if (totalDangerousSegments > 0 || dangerPercentage >= 1) {
         overallSafety = "dangerous";
-      // If even one dangerous segment, or 1% of segments are dangerous
-      else if (dangerPercentage > 10) overallSafety = "caution";
-      else if (
+      } else if (dangerPercentage > 10) {
+        overallSafety = "caution";
+      } else if (
         totalSegments > 0 &&
         totalUnreviewedSegments / totalSegments > 0.7
-      )
+      ) {
         overallSafety = "unreviewed"; // Mostly unreviewed route
+      }
 
       return {
         overall: overallSafety,
@@ -656,39 +819,33 @@ const SafeMaps = () => {
   const getSafetyColor = (safetyStatus: string): string => {
     switch (safetyStatus) {
       case "dangerous":
-        return "#FF4444";
+        return "#FF4444"; // Red
       case "caution":
-        return "#FFA500";
+        return "#FFA500"; // Orange
       case "safe":
-        return "#4CAF50";
+        return "#4CAF50"; // Green
       default:
-        return "#2196F3";
+        return "#2196F3"; // Blue (for unreviewed)
     }
   };
 
   /**
    * Fetches multiple route options from Google Directions API, including alternatives
    * and routes avoiding certain features, then analyzes their safety.
-   * @param {object} origin - {latitude, longitude}
-   * @param {object} destination - {latitude, longitude}
-   * @returns {Array<object>} Sorted array of route objects with safety analysis.
+   * @param {Coordinate} origin - {latitude, longitude}
+   * @param {Coordinate} destination - {latitude, longitude}
+   * @returns {Promise<RouteInfo[]>} Sorted array of route objects with safety analysis.
    */
   const getMultipleGoogleRoutes = async (
     origin: Coordinate,
     destination: Coordinate
-  ) => {
-    const API_KEY =
-      process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY ||
-      Constants.expoConfig?.extra?.googleDirectionsApiKey ||
-      Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
-      Constants.expoConfig?.ios?.config?.googleMapsApiKey;
-
-    if (!API_KEY) {
+  ): Promise<RouteInfo[]> => {
+    if (!GOOGLE_DIRECTIONS_API_KEY) {
       Alert.alert(
         "API Key Missing",
         "Google Directions API key is not configured. Please add it to your app.json extra field."
       );
-      throw new Error("Google API key not found");
+      throw new Error("Google Directions API key not found");
     }
 
     const fetchRoute = async (pref = "") => {
@@ -696,7 +853,9 @@ const SafeMaps = () => {
         origin.latitude
       },${origin.longitude}&destination=${destination.latitude},${
         destination.longitude
-      }&key=${API_KEY}&alternatives=true&units=metric${pref ? `&${pref}` : ""}`;
+      }&key=${GOOGLE_DIRECTIONS_API_KEY}&alternatives=true&units=metric${
+        pref ? `&${pref}` : ""
+      }`;
       const response = await fetch(url);
       const data = await response.json();
       if (data.status !== "OK") {
@@ -710,7 +869,7 @@ const SafeMaps = () => {
       return data.routes || [];
     };
 
-    let allGoogleRoutes = [];
+    let allGoogleRoutes: any[] = [];
 
     // Fetch standard routes and alternatives
     allGoogleRoutes.push(...(await fetchRoute()));
@@ -720,7 +879,7 @@ const SafeMaps = () => {
     allGoogleRoutes.push(...(await fetchRoute("avoid=tolls")));
 
     // Process and remove duplicates
-    const processedRoutes = allGoogleRoutes.map((route, index) => {
+    const processedRoutes: RouteInfo[] = allGoogleRoutes.map((route, index) => {
       const leg = route.legs[0];
       const coordinates = decodePolyline(route.overview_polyline.points);
       const directions = leg.steps.map((step: any) => ({
@@ -736,11 +895,11 @@ const SafeMaps = () => {
         duration: Math.round(leg.duration.value / 60), // in minutes
         description: `${leg.distance.text} • ${leg.duration.text}`,
         directions,
-      };
+      } as RouteInfo; // Cast to RouteInfo
     });
 
     // Remove duplicate routes based on proximity of distance and duration
-    const uniqueRoutes: any[] = [];
+    const uniqueRoutes: RouteInfo[] = [];
     for (const route of processedRoutes) {
       const isDuplicate = uniqueRoutes.some((existing) => {
         const distanceDiff = Math.abs(existing.distance - route.distance);
@@ -758,21 +917,21 @@ const SafeMaps = () => {
       return {
         ...route,
         safety: safetyAnalysis,
-        color: getSafetyColor(safetyAnalysis.overall), // <--- This is the line that uses getSafetyColor
+        color: getSafetyColor(safetyAnalysis.overall),
         title: index === 0 ? "Primary Route" : `Alternative Route ${index + 1}`,
       };
     });
 
     // Sort routes: safest first, then shortest duration
     routesWithSafety.sort((a, b) => {
-      const safetyPriority = {
+      const safetyPriority: { [key: string]: number } = {
         safe: 4,
         unreviewed: 3,
         caution: 2,
         dangerous: 1,
       };
-      const aSafety = (safetyPriority as any)[a.safety.overall];
-      const bSafety = (safetyPriority as any)[b.safety.overall];
+      const aSafety = safetyPriority[a.safety.overall];
+      const bSafety = safetyPriority[b.safety.overall];
 
       if (aSafety !== bSafety) return bSafety - aSafety; // Prioritize higher safety score
       return a.duration - b.duration; // Then prioritize shorter duration
@@ -784,12 +943,18 @@ const SafeMaps = () => {
   /**
    * Function to calculate routes and display options.
    * This does NOT set navigation mode to true immediately.
-   * @param {object} destinationCoord - The coordinate of the destination to calculate route for.
+   * @param {Coordinate} destinationCoord - The coordinate of the destination to calculate route for.
+   * @param {boolean} [showBottomSheetOnFinish=true] - Whether to show the bottom sheet after calculation.
    */
-  const calculateAndShowRoutes = async (destinationCoord) => {
-    // MODIFIED: Accepts destinationCoord
-    if (!location || !destinationCoord) {
-      // MODIFIED: Checks destinationCoord
+  const calculateAndShowRoutes = async (
+    destinationCoord: Coordinate,
+    showBottomSheetOnFinish: boolean = true
+  ) => {
+    if (!location) {
+      Alert.alert("Error", "Please get your current location first.");
+      return;
+    }
+    if (!destinationCoord) {
       Alert.alert("Error", "Please select a destination first.");
       return;
     }
@@ -802,12 +967,16 @@ const SafeMaps = () => {
     setSelectedRouteIndex(0);
     setIsNavigationMode(false); // Ensure navigation mode is false when showing options
 
-    // Set selectedLocation here, just before calculation uses it
-    setSelectedLocation({
-      title: nearestPlaceDetails?.title || "Destination", // Use nearestPlaceDetails title if available
-      subtitle: nearestPlaceDetails?.subtitle || "",
-      coordinate: destinationCoord,
-    });
+    // Set selectedLocation here, just before calculation uses it (if not already set by search)
+    // This ensures selectedLocation is consistent for route calculation and bottom sheet display
+    if (!selectedLocation || selectedLocation.coordinate !== destinationCoord) {
+      setSelectedLocation({
+        id: `temp-${destinationCoord.latitude}-${destinationCoord.longitude}`,
+        title: nearestPlaceDetails?.title || "Destination",
+        subtitle: nearestPlaceDetails?.subtitle || "",
+        coordinate: destinationCoord,
+      });
+    }
 
     try {
       const routes = await getMultipleGoogleRoutes(
@@ -815,7 +984,7 @@ const SafeMaps = () => {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
         },
-        destinationCoord // MODIFIED: Use destinationCoord here
+        destinationCoord
       );
 
       if (!routes || routes.length === 0) {
@@ -880,15 +1049,18 @@ const SafeMaps = () => {
       );
     } finally {
       setIsCalculatingRoute(false);
-      animateBottomSheet(false); // Hide bottom sheet after calculation
+      // Only show bottom sheet if explicitly requested
+      if (showBottomSheetOnFinish) {
+        animateBottomSheet(true);
+      }
     }
   };
 
   /**
-   * Function to fetch nearby places (police or hospital)
+   * Function to fetch nearby places (police or hospital) using Google Places Nearby Search API.
    * @param {string} placeType - 'police' or 'hospital'
    */
-  const getNearbyPlaces = async (placeType) => {
+  const getNearbyPlaces = async (placeType: string) => {
     if (!location) {
       Alert.alert(
         "Location Error",
@@ -920,11 +1092,13 @@ const SafeMaps = () => {
       const data = await response.json();
 
       if (data.status === "OK") {
-        // MODIFIED: Directly take the first result from Google's API response
-        const nearestPlaceFromAPI = data.results[0];
+        const nearestPlaceFromAPI = data.results[0]; // Take the first result as the nearest
 
         if (nearestPlaceFromAPI) {
-          const formattedNearest = {
+          const formattedNearest: SearchResult & {
+            distance: number;
+            type: string;
+          } = {
             id: nearestPlaceFromAPI.place_id,
             title: nearestPlaceFromAPI.name,
             subtitle:
@@ -939,31 +1113,30 @@ const SafeMaps = () => {
               location.coords,
               nearestPlaceFromAPI.geometry.location
             ),
+            type: placeType, // Add type for modal display
           };
 
-          // Set only the nearest place to the respective state
+          // Set only the nearest place to the respective state for map markers
           if (placeType === "police") {
-            setNearbyPoliceStations([formattedNearest]); // Only the nearest police station
+            setNearbyPoliceStations([formattedNearest]);
           } else if (placeType === "hospital") {
-            setNearbyHospitals([formattedNearest]); // Only the nearest hospital
+            setNearbyHospitals([formattedNearest]);
           }
 
-          setNearestPlaceDetails({ ...formattedNearest, type: placeType }); // Store details for modal
+          setNearestPlaceDetails(formattedNearest); // Store details for confirmation modal
           setShowNearestPlaceModal(true); // Show the confirmation modal
 
-          // Fit map to this single nearest marker
+          // Fit map to this single nearest marker and current location
           if (mapRef.current) {
             mapRef.current.fitToCoordinates(
               [formattedNearest.coordinate, location.coords],
               {
-                // Include current location for context
                 edgePadding: { top: 100, right: 50, bottom: 300, left: 50 },
                 animated: true,
               }
             );
           }
         } else {
-          // No results found even if status is OK but results array is empty
           Alert.alert(
             `No ${
               placeType === "police" ? "Police Stations" : "Hospitals"
@@ -1007,32 +1180,63 @@ const SafeMaps = () => {
   };
 
   /**
-   * Starts navigation to the nearest place found.
+   * Starts navigation to the nearest place found (after confirmation).
    */
   const startNavigationToNearestPlace = () => {
-    if (nearestPlaceDetails && location) {
-      // Pass the coordinate directly to calculateAndShowRoutes
-      calculateAndShowRoutes(nearestPlaceDetails.coordinate);
-      setShowNearestPlaceModal(false); // Close the modal
-    } else {
+    if (!nearestPlaceDetails || !location) {
       Alert.alert("Error", "No nearest place selected for navigation.");
+      return;
     }
+    calculateAndShowRoutes(nearestPlaceDetails.coordinate, false); // MODIFIED: Pass 'false' here
+    setShowNearestPlaceModal(false); // Close the modal
   };
 
   /**
-   * Initiates actual navigation. This is called from RouteOptionsDisplay.
+   * Initiates actual navigation mode. This is called from RouteOptionsDisplay.
    */
-  const startActualNavigation = () => {
-    if (!routeInfo || !routeCoordinates.length) {
-      Alert.alert("Error", "No route selected to start navigation.");
+  const startActualNavigation = async () => {
+    if (!routeInfo || !routeCoordinates.length || !location) {
+      Alert.alert(
+        "Error",
+        "No route selected or current location unavailable to start navigation."
+      );
       return;
     }
     setIsNavigationMode(true);
-    // You might want to fit the map to the current user location and route here
-    mapRef.current?.fitToCoordinates(routeCoordinates, {
-      edgePadding: { top: 100, right: 50, bottom: 300, left: 50 },
-      animated: true,
-    });
+
+    // Start watching user's position
+    try {
+      const watcher = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000, // Update every 1 second
+          distanceInterval: 10, // Update every 10 meters
+        },
+        (newLocation) => {
+          if (mapRef.current && newLocation.coords) {
+            mapRef.current.animateCamera(
+              {
+                center: {
+                  latitude: newLocation.coords.latitude,
+                  longitude: newLocation.coords.longitude,
+                },
+                // Removed zoom and heading for initial debugging, can add back later
+                // zoom: 16, // Keep a consistent zoom level during navigation
+                // heading: newLocation.coords.heading || 0, // Orient map to user's direction
+              },
+              { duration: 500 }
+            ); // Smooth animation
+          }
+        }
+      );
+      setLocationWatcher(watcher);
+    } catch (error) {
+      console.error("Error starting location watcher:", error);
+      Alert.alert(
+        "Navigation Error",
+        "Could not start live navigation. Please check location permissions."
+      );
+    }
   };
 
   /**
@@ -1049,8 +1253,15 @@ const SafeMaps = () => {
     setNearbyHospitals([]); // Clear nearby markers on stop navigation
     setNearestPlaceDetails(null); // Clear nearest place details on stop navigation
     setShowNearestPlaceModal(false); // Ensure modal is closed
-    // Optionally, reset map to current location
-    if (location && selectedLocation) {
+
+    // Stop location watcher if active
+    if (locationWatcher) {
+      locationWatcher.remove();
+      setLocationWatcher(null);
+    }
+
+    // Optionally, reset map to current location after stopping navigation
+    if (location) {
       mapRef.current?.animateToRegion({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -1062,7 +1273,7 @@ const SafeMaps = () => {
 
   /**
    * Selects a different route option from the available list.
-   * @param {number} routeIndex
+   * @param {number} routeIndex - The index of the selected route in routeOptions array.
    */
   const selectRouteOption = (routeIndex: number) => {
     const newSelectedRoute = routeOptions[routeIndex];
@@ -1088,8 +1299,85 @@ const SafeMaps = () => {
     });
   };
 
+  /**
+   * Handles saving the selected location to AsyncStorage.
+   * @param {SearchResult} loc - The location object to save.
+   */
+  const handleSaveLocation = async (loc: SearchResult) => {
+    if (!loc) {
+      Alert.alert("Error", "No location selected to save.");
+      return;
+    }
+    try {
+      // Retrieve existing saved locations from AsyncStorage
+      const savedLocationsJson = await AsyncStorage.getItem("savedLocations");
+      const savedLocations: SearchResult[] = savedLocationsJson
+        ? JSON.parse(savedLocationsJson)
+        : [];
+
+      // Check if location already exists to prevent duplicates
+      const exists = savedLocations.some((item) => item.id === loc.id);
+      if (exists) {
+        Alert.alert(
+          "Location Already Saved",
+          `${loc.title} is already in your saved places.`
+        );
+        return;
+      }
+
+      // Add the new location and save back to AsyncStorage
+      const newSavedLocations = [...savedLocations, loc];
+      await AsyncStorage.setItem(
+        "savedLocations",
+        JSON.stringify(newSavedLocations)
+      );
+      Alert.alert(
+        "Location Saved",
+        `${loc.title} has been added to your saved places!`
+      );
+    } catch (error) {
+      console.error("Error saving location:", error);
+      Alert.alert("Error", "Failed to save location. Please try again.");
+    }
+  };
+
+  /**
+   * Handles sharing the selected location's details using React Native's Share API.
+   * @param {SearchResult | null} loc - The location object to share.
+   */
+  const handleShareLocation = async (loc: SearchResult | null) => {
+    if (!loc) {
+      Alert.alert("Error", "No location selected to share.");
+      return;
+    }
+
+    // Create a message with location details and a Google Maps link
+    const message = `Check out this location: ${loc.title} - ${loc.subtitle}.
+Coordinates: ${loc.coordinate.latitude}, ${loc.coordinate.longitude}.
+View on Map: https://www.google.com/maps/search/?api=1&query=${loc.coordinate.latitude},${loc.coordinate.longitude}`;
+
+    try {
+      // Use the Share API to open the native share sheet
+      await Share.share({
+        message: message,
+        url: `https://www.google.com/maps/search/?api=1&query=${loc.coordinate.latitude},${loc.coordinate.longitude}`,
+        title: `Share ${loc.title}`,
+      });
+    } catch (error: any) {
+      // Handle potential errors during sharing (e.g., user cancels share)
+      Alert.alert(
+        "Error Sharing",
+        error.message || "Failed to share location."
+      );
+      console.error("Error sharing location:", error);
+    }
+  };
+
   // --- Render Logic ---
-  if (!location) {
+
+  // Show loading screen if location is not yet available
+  if (!isLocationReady) {
+    // Use isLocationReady for initial loading screen
     return (
       <SafeAreaView style={GlobalStyles.loadingContainer}>
         <Text style={GlobalStyles.loadingText}>Loading SafeRoute...</Text>
@@ -1104,6 +1392,7 @@ const SafeMaps = () => {
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <SafeAreaView style={GlobalStyles.container}>
+        {/* Search Bar Component */}
         <SearchBar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1117,7 +1406,21 @@ const SafeMaps = () => {
           }}
         />
 
-        {/* Map Display */}
+        {/* NEW: Menu Button to Saved Places Screen */}
+        <View style={styles.menuButtonContainer}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => navigation.navigate("SavedPlacesScreen")} // Changed to 'SavedPlacesScreen' as per RootLayout.tsx
+          >
+            <MaterialIcons
+              name="bookmark"
+              size={24}
+              color={GlobalStyles.colors.primary}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Map Display Component */}
         <MapDisplay
           mapRef={mapRef}
           initialRegion={mapRegion}
@@ -1125,7 +1428,7 @@ const SafeMaps = () => {
           safetyReviews={safetyReviews}
           dangerousAreas={dangerousAreas}
           routeCoordinates={routeCoordinates}
-          routeColor="#2196F3"
+          routeColor={routeInfo?.color || "#2196F3"} // Use routeInfo color if available
           onLongPress={(event: any) => {
             setReviewLocation(event.nativeEvent.coordinate);
             setShowReviewModal(true);
@@ -1136,7 +1439,7 @@ const SafeMaps = () => {
           nearbyHospitals={nearbyHospitals}
         />
 
-        {/* Loading Overlay for route calculation */}
+        {/* Loading Overlay for route calculation or nearby search */}
         <LoadingOverlay
           isVisible={isCalculatingRoute || isLoadingNearby}
           message={
@@ -1149,14 +1452,14 @@ const SafeMaps = () => {
           }
         />
 
-        {/* Navigation Header */}
+        {/* Navigation Header Component (visible when in navigation mode) */}
         <NavigationHeader
           isVisible={isNavigationMode && routeInfo}
           routeInfo={routeInfo}
           onStopNavigation={stopNavigation}
         />
 
-        {/* Route Options Display */}
+        {/* Route Options Display Component (visible after route calculation, before navigation) */}
         <RouteOptionsDisplay
           isVisible={routeOptions.length > 0 && !isNavigationMode}
           routeOptions={routeOptions}
@@ -1164,23 +1467,33 @@ const SafeMaps = () => {
           onSelectRoute={selectRouteOption}
           onViewDirections={() => setShowDirectionsModal(true)}
           onStartNavigation={startActualNavigation}
-          onRecalculateRoute={calculateAndShowRoutes} // This will now need selectedLocation to be set externally
+          onRecalculateRoute={
+            () =>
+              selectedLocation &&
+              calculateAndShowRoutes(selectedLocation.coordinate, true) // Show bottom sheet after recalculate
+          }
           safeRouteOnly={safeRouteOnly}
           onToggleSafeRouteOnly={() => setSafeRouteOnly((prev) => !prev)}
         />
 
-        {/* Bottom Sheet for selected location details */}
+        {/* Bottom Sheet for selected location details and actions */}
         <BottomSheet
           showBottomSheet={showBottomSheet}
           bottomSheetAnim={bottomSheetAnim}
           selectedLocation={selectedLocation}
-          onStartNavigation={() =>
-            calculateAndShowRoutes(selectedLocation.coordinate)
-          } // MODIFIED: Pass coordinate directly
+          onStartNavigation={() => {
+            // MODIFIED: Explicitly close bottom sheet here
+            animateBottomSheet(false); // Close the bottom sheet immediately
+            if (selectedLocation) {
+              calculateAndShowRoutes(selectedLocation.coordinate, false); // Do not show bottom sheet again after route calculation
+            }
+          }}
+          onSaveLocation={handleSaveLocation} // Pass the save function
+          onShareLocation={() => handleShareLocation(selectedLocation)} // Pass the share function
           onClose={() => animateBottomSheet(false)}
         />
 
-        {/* Safety Review Modal */}
+        {/* Safety Review Modal Component */}
         <SafetyReviewModal
           showReviewModal={showReviewModal}
           reviewLocation={reviewLocation}
@@ -1188,7 +1501,7 @@ const SafeMaps = () => {
           onClose={() => setShowReviewModal(false)}
         />
 
-        {/* Directions Modal */}
+        {/* Directions Modal Component */}
         <DirectionsModal
           showDirectionsModal={showDirectionsModal}
           directions={directions}
@@ -1196,13 +1509,13 @@ const SafeMaps = () => {
           onClose={() => setShowDirectionsModal(false)}
         />
 
-        {/* Long Press Instruction */}
+        {/* Long Press Instruction Overlay */}
         <LongPressInstruction
           isVisible={showLongPressInstruction}
           onClose={() => setShowLongPressInstruction(false)}
         />
 
-        {/* Nearest Place Confirmation Modal */}
+        {/* Nearest Place Confirmation Modal Component */}
         <NearestPlaceConfirmationModal
           isVisible={showNearestPlaceModal}
           placeDetails={nearestPlaceDetails}
@@ -1214,12 +1527,27 @@ const SafeMaps = () => {
             setNearbyHospitals([]); // Clear markers if user cancels
           }}
         />
-
-        {/* Emergency Button */}
-        {/* Removed EmergencyButton component */}
       </SafeAreaView>
     </>
   );
 };
+
+const styles = StyleSheet.create({
+  menuButtonContainer: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 50 : 100,
+    right: 15,
+    zIndex: 11,
+  },
+  menuButton: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    width: 48,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+    ...GlobalStyles.shadow,
+  },
+});
 
 export default SafeMaps;

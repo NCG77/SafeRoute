@@ -10,7 +10,7 @@ import React from "react";
 import { View } from "react-native";
 
 export const unstable_settings = {
-  initialRouteName: "(tabs)",
+  initialRouteName: "Home",
 };
 
 const Page = () => {

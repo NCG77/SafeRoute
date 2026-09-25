@@ -1,23 +1,14 @@
 // components/maps/NearestPlaceConfirmationModal.js
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { GlobalStyles } from "../../constants/GlobalStyles";
 
-/**
- * NearestPlaceConfirmationModal Component
- * Displays a modal to confirm navigation to the nearest police station or hospital.
- *
- * Props:
- * - isVisible: Boolean to control modal visibility.
- * - placeDetails: Object containing details of the nearest place ({title, subtitle, distance, type}).
- * - onConfirmNavigation: Function to call when user confirms navigation.
- * - onCancel: Function to call when user cancels.
- */
 const NearestPlaceConfirmationModal = ({
   isVisible,
   placeDetails,
   onConfirmNavigation,
   onCancel,
 }) => {
+  const { colors: c, elevation: elev } = useAppTheme();
   if (!isVisible || !placeDetails) {
     return null;
   }
@@ -28,29 +19,50 @@ const NearestPlaceConfirmationModal = ({
   return (
     <Modal
       visible={isVisible}
-      animationType="fade" // or "slide"
+      animationType="fade"
       transparent={true}
       onRequestClose={onCancel}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
-          <Text style={styles.title}>Nearest {placeTypeDisplay} Found!</Text>
-          {/* Ensure all text is wrapped in <Text> components */}
-          <Text style={styles.placeName}>{placeDetails.title}</Text>
-          <Text style={styles.placeAddress}>{placeDetails.subtitle}</Text>
-          {placeDetails.distance !== undefined &&
-            placeDetails.distance !== null && ( // Check for null/undefined explicitly
-              <Text style={styles.placeDistance}>
-                Approximately {placeDetails.distance.toFixed(1)} km away
+        <View
+          style={[
+            styles.modalContainer,
+            { backgroundColor: c.surface, ...elev.card },
+          ]}
+        >
+          <Text style={[styles.title, { color: c.textPrimary }]}>
+            Nearest {placeTypeDisplay} Found!
+          </Text>
+          <Text style={[styles.placeName, { color: c.primary }]}>
+            {placeDetails.title}
+          </Text>
+          <Text style={[styles.placeAddress, { color: c.textSecondary }]}>
+            {placeDetails.subtitle}
+          </Text>
+          {Number.isFinite(placeDetails.distance) ? (
+              <Text style={[styles.placeDistance, { color: c.textPrimary }]}>
+                {placeDetails.distance < 1
+                  ? `Approximately ${Math.round(placeDetails.distance * 1000)} m away`
+                  : `Approximately ${placeDetails.distance.toFixed(1)} km away`}
               </Text>
-            )}
+            ) : null}
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+            <TouchableOpacity
+              style={[
+                styles.cancelButton,
+                { backgroundColor: c.surfaceVariant },
+              ]}
+              onPress={onCancel}
+            >
+              <Text
+                style={[styles.cancelButtonText, { color: c.textSecondary }]}
+              >
+                Cancel
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.navigateButton}
+              style={[styles.navigateButton, { backgroundColor: c.success }]}
               onPress={onConfirmNavigation}
             >
               <Text style={styles.navigateButtonText}>Start Navigation</Text>
@@ -70,37 +82,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContainer: {
-    backgroundColor: "white",
     borderRadius: 15,
     padding: 25,
     width: "85%",
     alignItems: "center",
-    ...GlobalStyles.shadow,
   },
   title: {
     fontSize: 20,
     fontWeight: "bold",
-    color: GlobalStyles.colors.textPrimary,
     marginBottom: 10,
     textAlign: "center",
   },
   placeName: {
     fontSize: 18,
     fontWeight: "600",
-    color: GlobalStyles.colors.primary,
     marginBottom: 5,
     textAlign: "center",
   },
   placeAddress: {
     fontSize: 14,
-    color: GlobalStyles.colors.textSecondary,
     marginBottom: 5,
     textAlign: "center",
   },
   placeDistance: {
     fontSize: 14,
     fontWeight: "bold",
-    color: GlobalStyles.colors.textPrimary,
     marginTop: 10,
     marginBottom: 20,
   },
@@ -112,20 +118,17 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: GlobalStyles.colors.lightGray,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
     marginRight: 10,
   },
   cancelButtonText: {
-    color: GlobalStyles.colors.textSecondary,
     fontWeight: "bold",
     fontSize: 16,
   },
   navigateButton: {
     flex: 1,
-    backgroundColor: GlobalStyles.colors.success,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",

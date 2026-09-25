@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { GlobalStyles } from "../../constants/GlobalStyles";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 /**
  * DirectionsModal Component
@@ -25,6 +25,7 @@ const DirectionsModal = ({
   routeInfo,
   onClose,
 }) => {
+  const { colors: c } = useAppTheme();
   if (!showDirectionsModal) return null;
 
   return (
@@ -35,18 +36,39 @@ const DirectionsModal = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalContainer}>
-        <View style={styles.directionsModal}>
-          <View style={styles.directionsHeader}>
-            <Text style={styles.directionsTitle}>Turn-by-turn directions</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeButtonText}>✕</Text>
+        <View style={[styles.directionsModal, { backgroundColor: c.surface }]}>
+          <View
+            style={[styles.directionsHeader, { borderBottomColor: c.border }]}
+          >
+            <Text style={[styles.directionsTitle, { color: c.textPrimary }]}>
+              Turn-by-turn directions
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.closeButton,
+                { backgroundColor: c.surfaceVariant },
+              ]}
+              onPress={onClose}
+            >
+              <Text
+                style={[styles.closeButtonText, { color: c.textSecondary }]}
+              >
+                ✕
+              </Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.directionsScrollView}>
             {routeInfo && (
-              <View style={styles.routeSummary}>
-                <Text style={styles.routeSummaryText}>
+              <View
+                style={[
+                  styles.routeSummary,
+                  { backgroundColor: c.backgroundLight },
+                ]}
+              >
+                <Text
+                  style={[styles.routeSummaryText, { color: c.textPrimary }]}
+                >
                   Total: {routeInfo.description}
                 </Text>
                 <Text
@@ -60,23 +82,40 @@ const DirectionsModal = ({
               </View>
             )}
             {directions.map((direction, index) => (
-              <View key={index} style={styles.directionStep}>
-                <View style={styles.stepIndicator}>
+              <View
+                key={index}
+                style={[styles.directionStep, { borderBottomColor: c.border }]}
+              >
+                <View
+                  style={[styles.stepIndicator, { backgroundColor: c.primary }]}
+                >
                   <Text style={styles.stepNumber}>{index + 1}</Text>
                 </View>
                 <View style={styles.stepContent}>
-                  <Text style={styles.stepInstruction}>
+                  <Text
+                    style={[styles.stepInstruction, { color: c.textPrimary }]}
+                  >
                     {direction.instruction}
                   </Text>
-                  <Text style={styles.stepDetails}>
-                    {direction.distance}{" "}
-                    {direction.duration && `• ${direction.duration}`}
+                  <Text
+                    style={[styles.stepDetails, { color: c.textSecondary }]}
+                  >
+                    {direction.distanceMeters != null
+                      ? `${Math.round(direction.distanceMeters)} m`
+                      : direction.distance || ""}
+                    {direction.durationSeconds != null
+                      ? ` • ${Math.max(1, Math.round(direction.durationSeconds / 60))} min`
+                      : direction.duration
+                        ? ` • ${direction.duration}`
+                        : ""}
                   </Text>
                 </View>
               </View>
             ))}
             {directions.length === 0 && (
-              <Text style={styles.noDirectionsText}>
+              <Text
+                style={[styles.noDirectionsText, { color: c.textSecondary }]}
+              >
                 No detailed directions available for this route.
               </Text>
             )}
@@ -94,7 +133,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   directionsModal: {
-    backgroundColor: "white",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "80%",
@@ -106,24 +144,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: GlobalStyles.colors.lightGray,
   },
   directionsTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: GlobalStyles.colors.textPrimary,
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: GlobalStyles.colors.lightGray,
     alignItems: "center",
     justifyContent: "center",
   },
   closeButtonText: {
     fontSize: 16,
-    color: GlobalStyles.colors.textSecondary,
   },
   directionsScrollView: {
     paddingHorizontal: 10,
@@ -131,7 +165,6 @@ const styles = StyleSheet.create({
   },
   routeSummary: {
     padding: 16,
-    backgroundColor: GlobalStyles.colors.backgroundLight,
     borderRadius: 8,
     marginHorizontal: 10,
     marginBottom: 10,
@@ -139,7 +172,6 @@ const styles = StyleSheet.create({
   routeSummaryText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: GlobalStyles.colors.textPrimary,
   },
   routeSummarySafety: {
     fontSize: 14,
@@ -150,18 +182,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: GlobalStyles.colors.border,
     alignItems: "flex-start",
   },
   stepIndicator: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: GlobalStyles.colors.primary,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
-    flexShrink: 0, // Prevent shrinking
+    flexShrink: 0,
   },
   stepNumber: {
     color: "white",
@@ -173,18 +203,15 @@ const styles = StyleSheet.create({
   },
   stepInstruction: {
     fontSize: 16,
-    color: GlobalStyles.colors.textPrimary,
     fontWeight: "500",
   },
   stepDetails: {
     fontSize: 14,
-    color: GlobalStyles.colors.textSecondary,
     marginTop: 4,
   },
   noDirectionsText: {
     textAlign: "center",
     padding: 20,
-    color: GlobalStyles.colors.textSecondary,
     fontSize: 16,
   },
 });

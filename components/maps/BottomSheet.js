@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { GlobalStyles } from "../../constants/GlobalStyles";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 const { height } = Dimensions.get("window");
 
@@ -34,6 +34,7 @@ const BottomSheet = ({
   onShareLocation, // NEW PROP
   onClose,
 }) => {
+  const { colors: c, elevation: elev } = useAppTheme();
   if (showBottomSheet !== true || !selectedLocation) {
     return null;
   }
@@ -42,6 +43,7 @@ const BottomSheet = ({
     <Animated.View
       style={[
         styles.bottomSheet,
+        { backgroundColor: c.surface, ...elev.sheet },
         {
           transform: [
             {
@@ -54,10 +56,15 @@ const BottomSheet = ({
         },
       ]}
     >
-      <TouchableOpacity style={styles.bottomSheetHandle} onPress={onClose} />
+      <TouchableOpacity
+        style={[styles.bottomSheetHandle, { backgroundColor: c.border }]}
+        onPress={onClose}
+      />
       <View style={styles.bottomSheetContent}>
-        <Text style={styles.bottomSheetTitle}>{selectedLocation?.title}</Text>
-        <Text style={styles.bottomSheetSubtitle}>
+        <Text style={[styles.bottomSheetTitle, { color: c.textPrimary }]}>
+          {selectedLocation?.title}
+        </Text>
+        <Text style={[styles.bottomSheetSubtitle, { color: c.textSecondary }]}>
           {selectedLocation?.subtitle}
         </Text>
 
@@ -67,7 +74,11 @@ const BottomSheet = ({
             onPress={onStartNavigation}
           >
             <Text style={styles.actionButtonText}>🛡️</Text>
-            <Text style={styles.actionButtonLabel}>Safe Route</Text>
+            <Text
+              style={[styles.actionButtonLabel, { color: c.textSecondary }]}
+            >
+              Safe Route
+            </Text>
           </TouchableOpacity>
 
           {/* NEW: Save Button */}
@@ -76,7 +87,11 @@ const BottomSheet = ({
             onPress={() => onSaveLocation(selectedLocation)}
           >
             <Text style={styles.actionButtonText}>💾</Text>
-            <Text style={styles.actionButtonLabel}>Save</Text>
+            <Text
+              style={[styles.actionButtonLabel, { color: c.textSecondary }]}
+            >
+              Save
+            </Text>
           </TouchableOpacity>
 
           {/* NEW: Share Button */}
@@ -85,7 +100,11 @@ const BottomSheet = ({
             onPress={onShareLocation}
           >
             <Text style={styles.actionButtonText}>📤</Text>
-            <Text style={styles.actionButtonLabel}>Share</Text>
+            <Text
+              style={[styles.actionButtonLabel, { color: c.textSecondary }]}
+            >
+              Share
+            </Text>
           </TouchableOpacity>
 
           {/* Removed Call button as per your previous instruction */}
@@ -105,16 +124,13 @@ const styles = StyleSheet.create({
     bottom: 70,
     left: 0,
     right: 0,
-    backgroundColor: "white",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    ...GlobalStyles.shadow,
-    paddingBottom: 20, // Add padding for safe area on iOS
+    paddingBottom: 20,
   },
   bottomSheetHandle: {
     width: 40,
     height: 4,
-    backgroundColor: GlobalStyles.colors.lightGray,
     borderRadius: 2,
     alignSelf: "center",
     marginTop: 8,
@@ -126,12 +142,10 @@ const styles = StyleSheet.create({
   bottomSheetTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: GlobalStyles.colors.textPrimary,
     marginTop: 8,
   },
   bottomSheetSubtitle: {
     fontSize: 14,
-    color: GlobalStyles.colors.textSecondary,
     marginTop: 4,
   },
   bottomSheetActions: {
@@ -149,7 +163,6 @@ const styles = StyleSheet.create({
   },
   actionButtonLabel: {
     fontSize: 12,
-    color: GlobalStyles.colors.textSecondary,
   },
 });
 

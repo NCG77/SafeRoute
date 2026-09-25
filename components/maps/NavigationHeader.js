@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { GlobalStyles } from "../../constants/GlobalStyles";
+import { useAppTheme } from "@/hooks/useAppTheme";
 
 /**
  * NavigationHeader Component
@@ -19,11 +19,15 @@ import { GlobalStyles } from "../../constants/GlobalStyles";
  * - onStopNavigation: Function to call when the stop button is pressed.
  */
 const NavigationHeader = ({ isVisible, routeInfo, onStopNavigation }) => {
+  const { elevation: elev } = useAppTheme();
   if (!isVisible || !routeInfo) return null;
 
   return (
     <View
-      style={[styles.navigationHeader, { backgroundColor: routeInfo.color }]}
+      style={[
+        styles.navigationHeader,
+        { backgroundColor: routeInfo.color, ...elev.card },
+      ]}
     >
       <View style={styles.navigationInfo}>
         <Text style={styles.navigationTime}>{routeInfo.duration} min</Text>
@@ -53,7 +57,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     zIndex: 10,
-    ...GlobalStyles.shadow,
   },
   navigationInfo: {
     flex: 1,

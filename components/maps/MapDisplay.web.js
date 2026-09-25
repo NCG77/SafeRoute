@@ -38,64 +38,64 @@ const MapDisplay = ({
     if (onLongPress) {
       onLongPress({
         nativeEvent: {
-          coordinate: initialRegion || { latitude: 0, longitude: 0 }
-        }
+          coordinate: initialRegion || { latitude: 0, longitude: 0 },
+        },
       });
     }
   };
 
   return (
     <View style={styles.mapContainer}>
-      <View 
-        style={styles.webMapPlaceholder} 
+      <View
+        style={styles.webMapPlaceholder}
         ref={webMapRef}
         onClick={handleWebMapClick}
       >
-        <Text style={styles.placeholderText}>
-          🗺️ Web Map View
-        </Text>
+        <Text style={styles.placeholderText}>🗺️ Web Map View</Text>
         <Text style={styles.placeholderSubtext}>
           Interactive map features are optimized for mobile.
           {"\n"}
           For full functionality, please use the mobile app.
         </Text>
-        
+
         {initialRegion && (
           <Text style={styles.infoText}>
-            📍 Current Region: {initialRegion.latitude?.toFixed(4)}, {initialRegion.longitude?.toFixed(4)}
+            📍 Current Region: {initialRegion.latitude?.toFixed(4)},{" "}
+            {initialRegion.longitude?.toFixed(4)}
           </Text>
         )}
-        
+
         {selectedLocation && (
           <Text style={styles.infoText}>
             🎯 Selected: {selectedLocation.title || "Unknown location"}
           </Text>
         )}
-        
+
         {safetyReviews.length > 0 && (
           <Text style={styles.infoText}>
             🛡️ Safety Reviews: {safetyReviews.length}
           </Text>
         )}
-        
+
         {dangerousAreas.length > 0 && (
           <Text style={styles.infoText}>
             ⚠️ Dangerous Areas: {dangerousAreas.length}
           </Text>
         )}
-        
+
         {routeCoordinates.length > 0 && (
           <Text style={styles.infoText}>
             🛣️ Route Points: {routeCoordinates.length}
           </Text>
         )}
-        
+
         {(nearbyPoliceStations.length > 0 || nearbyHospitals.length > 0) && (
           <Text style={styles.infoText}>
-            🚔 Police: {nearbyPoliceStations.length} | 🏥 Hospitals: {nearbyHospitals.length}
+            🚔 Police: {nearbyPoliceStations.length} | 🏥 Hospitals:{" "}
+            {nearbyHospitals.length}
           </Text>
         )}
-        
+
         {onMyLocationPress && (
           <TouchableOpacity
             style={styles.myLocationButton}

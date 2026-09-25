@@ -1,24 +1,20 @@
 // components/LoadingOverlay.js
+import { useAppTheme } from "@/hooks/useAppTheme";
 import { StyleSheet, Text, View } from "react-native";
-import { GlobalStyles } from "../../constants/GlobalStyles";
 
-/**
- * LoadingOverlay Component
- * Displays a full-screen overlay with a loading message.
- *
- * Props:
- * - isVisible: Boolean to control visibility.
- * - message: Main loading message.
- * - subMessage: Secondary loading message.
- */
 const LoadingOverlay = ({ isVisible, message, subMessage }) => {
+  const { colors: c, elevation: elev } = useAppTheme();
   if (!isVisible) return null;
 
   return (
     <View style={styles.loadingOverlay}>
-      <View style={styles.loadingContent}>
+      <View style={[styles.loadingContent, elev.card]}>
         <Text style={styles.loadingText}>{message}</Text>
-        {subMessage && <Text style={styles.loadingSubText}>{subMessage}</Text>}
+        {subMessage && (
+          <Text style={[styles.loadingSubText, { color: c.textLight }]}>
+            {subMessage}
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -31,10 +27,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.6)", // Semi-transparent black
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 100, // Ensure it's on top
+    zIndex: 100,
   },
   loadingContent: {
     backgroundColor: "rgba(0, 0, 0, 0.8)",
@@ -42,7 +38,6 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     borderRadius: 10,
     alignItems: "center",
-    ...GlobalStyles.shadow,
   },
   loadingText: {
     fontSize: 18,
@@ -52,7 +47,6 @@ const styles = StyleSheet.create({
   },
   loadingSubText: {
     fontSize: 14,
-    color: GlobalStyles.colors.textLight,
     textAlign: "center",
     marginTop: 5,
   },

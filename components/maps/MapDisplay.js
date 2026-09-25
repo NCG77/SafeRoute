@@ -1,58 +1,51 @@
 // components/maps/MapDisplay.js
-import React, { useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useAppTheme } from "@/hooks/useAppTheme";
+import { NavigationArrow } from "@/components/navigation/NavigationArrow";
+import { heatColor } from "../../core/heatmap";
+import { useEffect } from "react";
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Constants from "expo-constants";
 import MapView, {
   Circle,
   Marker,
   Polyline,
   PROVIDER_GOOGLE,
 } from "react-native-maps";
-import { GlobalStyles } from "../../constants/GlobalStyles";
 
-/**
- * MapDisplay Component
- * Renders the map with current location, selected location, safety reviews,
- * dangerous areas, and the calculated route.
- *
- * Props:
- * - mapRef: React ref for the MapView component.
- * - initialRegion: Initial region to display on the map.
- * - selectedLocation: Object containing coordinate, title, subtitle for a selected place.
- * - safetyReviews: Array of safety review objects.
- * - dangerousAreas: Array of dangerous area objects (latitude, longitude, radius, severity).
- * - routeCoordinates: Array of coordinates for the route polyline.
- * - routeColor: Color for the route polyline.
- * - onLongPress: Function to call when the map is long-pressed (for adding reviews).
- * - onMyLocationPress: Function to call when "My Location" button is pressed.
- * - nearbyPoliceStations: Array of nearby police station objects.
- * - nearbyHospitals: Array of nearby hospital objects.
- */
+const isExpoGo = Constants.appOwnership === "expo";
+
 const MapDisplay = ({
   mapRef,
   initialRegion,
   selectedLocation,
   safetyReviews,
   dangerousAreas,
+  safetyHeatCells = [],
+  reviewDetailPins = [],
+  reviewDraftCoordinate = null,
   routeCoordinates,
+  routeKey,
   routeColor,
+  routeStrokeWidth = 6,
+  traveledCoordinates,
   onLongPress,
+  onRegionChangeComplete,
   onMyLocationPress,
   nearbyPoliceStations,
   nearbyHospitals,
+  showLocationButton = true,
+  navigationMode = false,
+  navigationCoordinate = null,
+  navigationHeading = 0,
 }) => {
-  // Debugging logs for incoming props
-  useEffect(() => {
-    console.log(
-      "MapDisplay - received nearbyPoliceStations count:",
-      nearbyPoliceStations.length
-    );
-    console.log(
-      "MapDisplay - received nearbyHospitals count:",
-      nearbyHospitals.length
-    );
-  }, [nearbyPoliceStations, nearbyHospitals]);
+  const { colors: c, elevation: elev } = useAppTheme();
 
-  // Effect to fit map to nearby markers when they appear
   useEffect(() => {
     const allNearbyCoords = [];
     if (nearbyPoliceStations.length > 0) {
@@ -62,23 +55,25 @@ const MapDisplay = ({
       allNearbyCoords.push(...nearbyHospitals.map((p) => p.coordinate));
     }
 
-    if (mapRef.current && allNearbyCoords.length > 0) {
-      // Temporarily remove current location from fitToCoordinates to see if it helps
-      // if (initialRegion?.latitude && initialRegion?.longitude) {
-      //   allNearbyCoords.push({latitude: initialRegion.latitude, longitude: initialRegion.longitude});
-      // }
-
+    if (mapRef.current && allNearbyCoords.length > 0 && !navigationMode) {
       mapRef.current.fitToCoordinates(allNearbyCoords, {
-        edgePadding: { top: 100, right: 50, bottom: 300, left: 50 }, // Adjust padding as needed
+        edgePadding: { top: 100, right: 50, bottom: 300, left: 50 },
         animated: true,
       });
-      console.log(
-        "MapDisplay: Attempting to fit map to coordinates for",
-        allNearbyCoords.length,
-        "places."
-      );
     }
-  }, [nearbyPoliceStations, nearbyHospitals]); // Removed initialRegion from dependency array for this specific effect
+  }, [nearbyPoliceStations, nearbyHospitals, navigationMode]);
+
+  const ahead =
+    Array.isArray(routeCoordinates) && routeCoordinates.length > 0
+      ? routeCoordinates
+      : [];
+  const traveled =
+    Array.isArray(traveledCoordinates) && traveledCoordinates.length > 1
+      ? traveledCoordinates
+      : [];
+
+  // Prefer aggregated heat; fall back to legacy dangerous circles only if no heat.
+  const useHeat = Array.isArray(safetyHeatCells) && safetyHeatCells.length > 0;
 
   return (
     <View style={styles.mapContainer}>
@@ -87,106 +82,173 @@ const MapDisplay = ({
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         initialRegion={initialRegion}
-        showsUserLocation={true}
+        showsUserLocation={!navigationMode}
         showsMyLocationButton={false}
         showsTraffic={true}
         showsBuildings={true}
         showsIndoors={true}
         onLongPress={onLongPress}
+        onRegionChangeComplete={onRegionChangeComplete}
+        rotateEnabled
+        pitchEnabled
       >
-        {/* Selected location marker */}
-        {selectedLocation && (
+        {selectedLocation && !navigationMode ? (
           <Marker
             coordinate={selectedLocation.coordinate}
             title={selectedLocation.title}
-            pinColor={GlobalStyles.colors.primary}
+            pinColor={c.primary}
           />
-        )}
+        ) : null}
 
-        {/* Safety review markers */}
-        {safetyReviews.map((review) => (
+        {selectedLocation && navigationMode ? (
           <Marker
-            key={`review-${review.id}`}
+            coordinate={selectedLocation.coordinate}
+            title={selectedLocation.title}
+            pinColor={c.danger}
+          />
+        ) : null}
+
+        {/* Soft safety heat (geohash aggregates) — scales to many reviews */}
+        {useHeat
+          ? safetyHeatCells.map((cell) => (
+              <Circle
+                key={`heat-${cell.id}`}
+                center={{
+                  latitude: cell.latitude,
+                  longitude: cell.longitude,
+                }}
+                radius={cell.radius}
+                strokeColor={`${cell.color}55`}
+                fillColor={`${cell.color}33`}
+                strokeWidth={1}
+                zIndex={0}
+              />
+            ))
+          : dangerousAreas.map((area, index) => (
+              <Circle
+                key={`danger-${index}`}
+                center={{ latitude: area.latitude, longitude: area.longitude }}
+                radius={area.radius}
+                strokeColor={`${heatColor(((area.severity - 1) / 4) * 100)}99`}
+                fillColor={`${heatColor(((area.severity - 1) / 4) * 100)}33`}
+                strokeWidth={2}
+              />
+            ))}
+
+        {/* Street-level only: tiny review dots (capped) */}
+        {reviewDetailPins.map((pin) => (
+          <Marker
+            key={`pin-${pin.id}`}
             coordinate={{
-              latitude: review.latitude,
-              longitude: review.longitude,
+              latitude: pin.latitude,
+              longitude: pin.longitude,
             }}
-            title={`Safety: ${review.rating}/5`}
-            description={review.comment}
-            pinColor={
-              review.rating <= 2
-                ? GlobalStyles.colors.danger
-                : review.rating >= 4
-                ? GlobalStyles.colors.success
-                : GlobalStyles.colors.warning
-            }
-          />
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            title={`${pin.rating}/5 · ${pin.category || "safety"}`}
+            description={pin.comment}
+          >
+            <View
+              style={[
+                styles.reviewDot,
+                {
+                  backgroundColor: pin.color,
+                  borderColor: "#fff",
+                },
+              ]}
+            />
+          </Marker>
         ))}
 
-        {/* Dangerous area circles */}
-        {dangerousAreas.map((area, index) => (
-          <Circle
-            key={`danger-${index}`}
-            center={{ latitude: area.latitude, longitude: area.longitude }}
-            radius={area.radius}
-            strokeColor="rgba(255, 68, 68, 0.6)"
-            fillColor="rgba(255, 68, 68, 0.2)"
-            strokeWidth={2}
+        {/* Draft pin while composing a review */}
+        {reviewDraftCoordinate ? (
+          <Marker
+            coordinate={reviewDraftCoordinate}
+            title="Reviewing this area"
+            pinColor={c.warning}
+            zIndex={8}
           />
-        ))}
+        ) : null}
 
-        {/* Route polyline with safety color */}
-        {routeCoordinates.length > 0 && (
+        {traveled.length > 1 ? (
           <Polyline
-            coordinates={routeCoordinates}
+            key={`traveled-${routeKey}`}
+            coordinates={traveled}
+            strokeColor="rgba(148, 163, 184, 0.75)"
+            strokeWidth={Math.max(4, routeStrokeWidth - 2)}
+            zIndex={1}
+            lineCap="round"
+            lineJoin="round"
+          />
+        ) : null}
+
+        {ahead.length > 0 ? (
+          <Polyline
+            key={
+              routeKey ||
+              `route-${ahead.length}-${routeColor}-${routeStrokeWidth}`
+            }
+            coordinates={ahead}
             strokeColor={routeColor}
-            strokeWidth={6}
+            strokeWidth={routeStrokeWidth}
             zIndex={2}
             lineCap="round"
             lineJoin="round"
           />
-        )}
+        ) : null}
 
-        {/* Markers for nearby Police Stations */}
-        {nearbyPoliceStations.map((place) => {
-          return (
-            <Marker
-              key={`police-${place.id}`}
-              coordinate={place.coordinate}
-              title={place.title}
-              description={place.subtitle}
-              pinColor={GlobalStyles.colors.secondary} // Purple
-            />
-          );
-        })}
+        {nearbyPoliceStations.map((place) => (
+          <Marker
+            key={`police-${place.id}`}
+            coordinate={place.coordinate}
+            title={place.title}
+            description={place.subtitle}
+            pinColor={c.secondary}
+          />
+        ))}
 
-        {/* Markers for nearby Hospitals */}
-        {nearbyHospitals.map((place) => {
-          // NEW: Log each hospital marker being rendered
-          console.log(
-            "Rendering Hospital Marker:",
-            place.title,
-            place.coordinate
-          );
-          return (
-            <Marker
-              key={`hospital-${place.id}`}
-              coordinate={place.coordinate}
-              title={place.title}
-              description={place.subtitle}
-              pinColor={GlobalStyles.colors.success} // Green
-            />
-          );
-        })}
+        {nearbyHospitals.map((place) => (
+          <Marker
+            key={`hospital-${place.id}`}
+            coordinate={place.coordinate}
+            title={place.title}
+            description={place.subtitle}
+            pinColor={c.success}
+          />
+        ))}
+
+        {navigationMode && navigationCoordinate ? (
+          <NavigationArrow
+            coordinate={navigationCoordinate}
+            heading={navigationHeading || 0}
+            color={c.primary}
+          />
+        ) : null}
       </MapView>
 
-      {/* My Location Button */}
-      <TouchableOpacity
-        style={styles.myLocationButton}
-        onPress={onMyLocationPress}
-      >
-        <Text style={styles.myLocationIcon}>📍</Text>
-      </TouchableOpacity>
+      {isExpoGo && Platform.OS === "android" ? (
+        <View style={styles.expoGoBanner} pointerEvents="none">
+          <Text style={styles.expoGoBannerTitle}>
+            Map tiles need a development build
+          </Text>
+          <Text style={styles.expoGoBannerBody}>
+            Expo Go on Android SDK 57 uses an expired Google Maps key. Location
+            still works. Run: npx expo run:android
+          </Text>
+        </View>
+      ) : null}
+
+      {showLocationButton ? (
+        <TouchableOpacity
+          style={[
+            styles.myLocationButton,
+            { backgroundColor: c.surface, ...elev.card },
+          ]}
+          onPress={onMyLocationPress}
+        >
+          <Text style={styles.myLocationIcon}>📍</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 };
@@ -205,13 +267,37 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "white",
     alignItems: "center",
     justifyContent: "center",
-    ...GlobalStyles.shadow,
   },
   myLocationIcon: {
     fontSize: 20,
+  },
+  expoGoBanner: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    borderRadius: 10,
+    padding: 12,
+  },
+  expoGoBannerTitle: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  expoGoBannerBody: {
+    color: "#eee",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  reviewDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
   },
 });
 

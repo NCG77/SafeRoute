@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { GlobalStyles } from "../../constants/GlobalStyles";
+import { useAppTheme } from "@/hooks/useAppTheme";
 import SafetyToggle from "./SafetyToggle"; // Import the new toggle component
 
 /**
@@ -36,12 +36,18 @@ const RouteOptionsDisplay = ({
   safeRouteOnly,
   onToggleSafeRouteOnly,
 }) => {
+  const { colors: c, elevation: elev } = useAppTheme();
   if (!isVisible || routeOptions.length === 0) return null;
 
   const currentRoute = routeOptions[selectedRouteIndex];
 
   return (
-    <View style={styles.routeOptionsContainer}>
+    <View
+      style={[
+        styles.routeOptionsContainer,
+        { backgroundColor: c.surface, ...elev.sheet },
+      ]}
+    >
       {/* Safety Toggle */}
       <SafetyToggle
         safeRouteOnly={safeRouteOnly}
@@ -59,8 +65,14 @@ const RouteOptionsDisplay = ({
             key={route.id}
             style={[
               styles.routeOption,
-              index === selectedRouteIndex && styles.selectedRouteOption,
-              { borderColor: route.color }, // Border color based on route safety
+              {
+                backgroundColor: c.backgroundLight,
+                borderColor: route.color,
+              },
+              index === selectedRouteIndex && {
+                backgroundColor: c.backgroundSelected,
+                borderColor: c.primary,
+              },
             ]}
             onPress={() => onSelectRoute(index)}
           >
@@ -68,7 +80,8 @@ const RouteOptionsDisplay = ({
               <Text
                 style={[
                   styles.routeOptionTime,
-                  index === selectedRouteIndex && styles.selectedRouteText,
+                  { color: c.textPrimary },
+                  index === selectedRouteIndex && { color: c.primary },
                 ]}
               >
                 {route.duration} min
@@ -77,28 +90,41 @@ const RouteOptionsDisplay = ({
                 style={[styles.safetyBadge, { backgroundColor: route.color }]}
               >
                 <Text style={styles.safetyBadgeText}>
-                  {route.safety?.overall === "dangerous"
-                    ? "D"
-                    : route.safety?.overall === "safe"
-                    ? "S"
-                    : route.safety?.overall === "caution"
-                    ? "C"
-                    : "U"}
+                  {Number.isFinite(route.safety?.score)
+                    ? Math.round(route.safety.score)
+                    : "–"}
                 </Text>
               </View>
             </View>
-            <Text style={styles.routeOptionTitle}>{route.title}</Text>
-            <Text style={styles.routeOptionDescription}>
+            <Text style={[styles.routeOptionTitle, { color: c.textPrimary }]}>
+              {route.title}
+            </Text>
+            <Text
+              style={[
+                styles.routeOptionDescription,
+                { color: c.textSecondary },
+              ]}
+            >
               {route.distance.toFixed(1)} km
             </Text>
             <Text style={[styles.safetyInfo, { color: route.color }]}>
-              {route.safety?.overall === "dangerous"
-                ? "Unsafe Area"
-                : route.safety?.overall === "caution"
-                ? "Caution Advised"
-                : route.safety?.overall === "safe"
-                ? "Very Safe"
+              {Number.isFinite(route.safety?.score)
+                ? `Safety ${Math.round(route.safety.score)}`
                 : "Unreviewed"}
+            </Text>
+            <Text
+              style={[
+                styles.routeOptionDescription,
+                { color: c.textSecondary },
+              ]}
+            >
+              {route.safety?.crowd == null
+                ? "Crowd —"
+                : `Crowd ${Math.round(route.safety.crowd * 100)}`}
+              {" · "}
+              {route.safety?.lighting == null
+                ? "Light —"
+                : `Light ${Math.round(route.safety.lighting * 100)}`}
             </Text>
           </TouchableOpacity>
         ))}
@@ -108,7 +134,7 @@ const RouteOptionsDisplay = ({
       {currentRoute && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.directionsButton}
+            style={[styles.directionsButton, { backgroundColor: c.secondary }]}
             onPress={onViewDirections}
           >
             <Text style={styles.directionsButtonText}>View Directions</Text>
@@ -129,7 +155,7 @@ const RouteOptionsDisplay = ({
       {/* NEW: Recalculate Route Button */}
       {onRecalculateRoute && (
         <TouchableOpacity
-          style={styles.recalculateButton}
+          style={[styles.recalculateButton, { backgroundColor: c.info }]}
           onPress={onRecalculateRoute}
         >
           <Text style={styles.recalculateButtonText}>Recalculate Route</Text>
@@ -145,30 +171,21 @@ const styles = StyleSheet.create({
     bottom: 70,
     left: 0,
     right: 0,
-    backgroundColor: "white",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
-    paddingBottom: 30, // Extra padding for bottom safe area
-    ...GlobalStyles.shadow,
-    maxHeight: "40%", // Limit height
+    paddingBottom: 30,
+    maxHeight: "40%",
   },
   routeOptionsScrollContent: {
     paddingVertical: 10,
   },
   routeOption: {
-    backgroundColor: GlobalStyles.colors.backgroundLight,
     borderRadius: 12,
     padding: 12,
     marginRight: 12,
     minWidth: 150,
     borderWidth: 2,
-    borderColor: "transparent",
-    ...GlobalStyles.shadowSmall,
-  },
-  selectedRouteOption: {
-    backgroundColor: GlobalStyles.colors.backgroundSelected,
-    borderColor: GlobalStyles.colors.primary, // Default selected border
   },
   routeOptionHeader: {
     flexDirection: "row",
@@ -191,20 +208,14 @@ const styles = StyleSheet.create({
   routeOptionTime: {
     fontSize: 18,
     fontWeight: "bold",
-    color: GlobalStyles.colors.textPrimary,
-  },
-  selectedRouteText: {
-    color: GlobalStyles.colors.primary,
   },
   routeOptionTitle: {
     fontSize: 14,
     fontWeight: "500",
-    color: GlobalStyles.colors.textPrimary,
     marginTop: 2,
   },
   routeOptionDescription: {
     fontSize: 12,
-    color: GlobalStyles.colors.textSecondary,
     marginTop: 2,
   },
   safetyInfo: {
@@ -219,7 +230,6 @@ const styles = StyleSheet.create({
   },
   directionsButton: {
     flex: 1,
-    backgroundColor: GlobalStyles.colors.secondary,
     borderRadius: 24,
     paddingVertical: 12,
     alignItems: "center",
@@ -232,7 +242,6 @@ const styles = StyleSheet.create({
   },
   startNavigationButton: {
     flex: 1,
-    backgroundColor: GlobalStyles.colors.success, // Default green
     borderRadius: 24,
     paddingVertical: 12,
     alignItems: "center",
@@ -244,8 +253,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   recalculateButton: {
-    // NEW STYLE
-    backgroundColor: GlobalStyles.colors.info, // Blue color
     borderRadius: 24,
     paddingVertical: 12,
     alignItems: "center",

@@ -1,4 +1,7 @@
 // components/SafetyReviewForm.js
+import { AreaPlaceSearch } from "@/components/maps/AreaPlaceSearch";
+import { useAppTheme } from "@/hooks/useAppTheme";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState } from "react";
 import {
   Alert,
@@ -9,19 +12,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { GlobalStyles } from "../../constants/GlobalStyles";
 
 /**
- * SafetyReviewForm Component
- * A form for users to submit safety reviews for a specific location.
- *
- * Props:
- * - location: Object {latitude, longitude} of the location being reviewed.
- * - onSubmit: Function to call when the form is submitted.
- * - onCancel: Function to call when the form is cancelled.
+ * SafetyReviewForm — area card + search + rating form.
  */
-const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
-  const [rating, setRating] = useState(3); // Default to neutral
+const SafetyReviewForm = ({
+  location,
+  locationLabel,
+  locationSubtitle,
+  onLocationChange,
+  onUseCurrentLocation,
+  onSubmit,
+  onCancel,
+  showMapTip = true,
+}) => {
+  const { colors: c } = useAppTheme();
+  const [rating, setRating] = useState(3);
   const [comment, setComment] = useState("");
   const [category, setCategory] = useState("general");
 
@@ -35,15 +41,25 @@ const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
     { value: "infrastructure", label: "Bad Infrastructure" },
   ];
 
+  const coordsLabel =
+    location != null
+      ? `${Number(location.latitude).toFixed(5)}, ${Number(
+          location.longitude,
+        ).toFixed(5)}`
+      : "—";
+
   const handleSubmit = () => {
     if (!location) {
-      Alert.alert("Error", "Location for review is missing.");
+      Alert.alert(
+        "Pick an area",
+        "Search for a place or use your current location before submitting.",
+      );
       return;
     }
     if (comment.trim().length < 10) {
       Alert.alert(
         "Error",
-        "Please provide a detailed comment (at least 10 characters)."
+        "Please provide a detailed comment (at least 10 characters).",
       );
       return;
     }
@@ -53,17 +69,79 @@ const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
       location.longitude,
       rating,
       comment.trim(),
-      category
+      category,
     );
-    // Reset form after submission
     setRating(3);
     setComment("");
     setCategory("general");
   };
 
   return (
-    <ScrollView style={styles.reviewForm}>
-      <Text style={styles.reviewFormLabel}>
+    <ScrollView
+      style={styles.reviewForm}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+    >
+      <View
+        style={[
+          styles.areaCard,
+          {
+            backgroundColor: c.primaryContainer,
+            borderColor: c.border,
+          },
+        ]}
+        accessibilityRole="summary"
+        accessibilityLabel={`Reviewing area ${locationLabel || coordsLabel}`}
+      >
+        <View style={[styles.areaIcon, { backgroundColor: c.primary }]}>
+          <MaterialIcons name="place" size={22} color={c.textOnPrimary} />
+        </View>
+        <View style={styles.areaCopy}>
+          <Text style={[styles.areaKicker, { color: c.primary }]}>
+            Reviewing this area
+          </Text>
+          <Text
+            style={[styles.areaTitle, { color: c.textPrimary }]}
+            numberOfLines={2}
+          >
+            {locationLabel || "Choose an area below"}
+          </Text>
+          <Text
+            style={[styles.areaSub, { color: c.textSecondary }]}
+            numberOfLines={2}
+          >
+            {locationSubtitle ||
+              (location
+                ? `About 100–150 m around ${coordsLabel}. Your report helps people nearby.`
+                : "Search for a place, or use your current location.")}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={[styles.searchLabel, { color: c.textPrimary }]}>
+        Change area
+      </Text>
+      <AreaPlaceSearch
+        biasCoordinate={location}
+        onSelectPlace={(place) => {
+          onLocationChange?.({
+            coordinate: place.coordinate,
+            title: place.title,
+            subtitle: `${place.subtitle} · ~150 m around pin`,
+          });
+        }}
+        onUseCurrentLocation={onUseCurrentLocation}
+        showUseCurrentLocation={Boolean(onUseCurrentLocation)}
+      />
+
+      {showMapTip ? (
+        <Text style={[styles.hint, { color: c.textSecondary }]}>
+          Tip: On the map you can also long-press the exact road or block to
+          review.
+        </Text>
+      ) : null}
+
+      <Text style={[styles.reviewFormLabel, { color: c.textPrimary }]}>
         How safe do you feel in this area?
       </Text>
 
@@ -73,12 +151,16 @@ const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
             key={star}
             style={[
               styles.starButton,
-              rating >= star && styles.starButtonActive,
+              rating >= star && { backgroundColor: c.warning },
             ]}
             onPress={() => setRating(star)}
           >
             <Text
-              style={[styles.starText, rating >= star && styles.starTextActive]}
+              style={[
+                styles.starText,
+                { color: c.surfaceVariant },
+                rating >= star && styles.starTextActive,
+              ]}
             >
               ★
             </Text>
@@ -86,19 +168,21 @@ const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
         ))}
       </View>
 
-      <Text style={styles.ratingLabel}>
+      <Text style={[styles.ratingLabel, { color: c.textSecondary }]}>
         {rating === 1
           ? "Very Unsafe"
           : rating === 2
-          ? "Unsafe"
-          : rating === 3
-          ? "Neutral"
-          : rating === 4
-          ? "Safe"
-          : "Very Safe"}
+            ? "Unsafe"
+            : rating === 3
+              ? "Neutral"
+              : rating === 4
+                ? "Safe"
+                : "Very Safe"}
       </Text>
 
-      <Text style={styles.reviewFormLabel}>Category</Text>
+      <Text style={[styles.reviewFormLabel, { color: c.textPrimary }]}>
+        Category
+      </Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -110,13 +194,15 @@ const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
             key={cat.value}
             style={[
               styles.categoryButton,
-              category === cat.value && styles.categoryButtonActive,
+              { backgroundColor: c.surfaceVariant },
+              category === cat.value && { backgroundColor: c.primary },
             ]}
             onPress={() => setCategory(cat.value)}
           >
             <Text
               style={[
                 styles.categoryButtonText,
+                { color: c.textSecondary },
                 category === cat.value && styles.categoryButtonTextActive,
               ]}
             >
@@ -126,12 +212,19 @@ const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
         ))}
       </ScrollView>
 
-      <Text style={styles.reviewFormLabel}>
+      <Text style={[styles.reviewFormLabel, { color: c.textPrimary }]}>
         Details (Help others stay safe)
       </Text>
       <TextInput
-        style={styles.commentInput}
+        style={[
+          styles.commentInput,
+          {
+            borderColor: c.border,
+            color: c.textPrimary,
+          },
+        ]}
         placeholder="Describe what makes this area safe or unsafe..."
+        placeholderTextColor={c.textTertiary}
         value={comment}
         onChangeText={setComment}
         multiline
@@ -139,13 +232,23 @@ const SafetyReviewForm = ({ location, onSubmit, onCancel }) => {
         maxLength={500}
       />
 
-      <Text style={styles.charCount}>{comment.length}/500</Text>
+      <Text style={[styles.charCount, { color: c.textSecondary }]}>
+        {comment.length}/500
+      </Text>
 
       <View style={styles.reviewFormButtons}>
-        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+        <TouchableOpacity
+          style={[styles.cancelButton, { backgroundColor: c.surfaceVariant }]}
+          onPress={onCancel}
+        >
+          <Text style={[styles.cancelButtonText, { color: c.textSecondary }]}>
+            Cancel
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+        <TouchableOpacity
+          style={[styles.submitButton, { backgroundColor: c.success }]}
+          onPress={handleSubmit}
+        >
           <Text style={styles.submitButtonText}>Submit Review</Text>
         </TouchableOpacity>
       </View>
@@ -157,10 +260,53 @@ const styles = StyleSheet.create({
   reviewForm: {
     padding: 20,
   },
+  areaCard: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  areaIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  areaCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  areaKicker: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  areaTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  areaSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  searchLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  hint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
   reviewFormLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: GlobalStyles.colors.textPrimary,
     marginBottom: 12,
     marginTop: 8,
   },
@@ -172,14 +318,10 @@ const styles = StyleSheet.create({
   starButton: {
     padding: 8,
     marginHorizontal: 4,
-    borderRadius: 20, // Make it circular
-  },
-  starButtonActive: {
-    backgroundColor: GlobalStyles.colors.warning, // Gold color for active stars
+    borderRadius: 20,
   },
   starText: {
     fontSize: 24,
-    color: GlobalStyles.colors.lightGray, // Grey for inactive stars
   },
   starTextActive: {
     color: "white",
@@ -187,68 +329,57 @@ const styles = StyleSheet.create({
   ratingLabel: {
     textAlign: "center",
     fontSize: 14,
-    color: GlobalStyles.colors.textSecondary,
     marginBottom: 20,
   },
   categoryScroll: {
     marginBottom: 20,
   },
   categoryScrollContent: {
-    alignItems: "center", // Center items when few categories
+    alignItems: "center",
   },
   categoryButton: {
-    backgroundColor: GlobalStyles.colors.lightGray,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     marginRight: 8,
   },
-  categoryButtonActive: {
-    backgroundColor: GlobalStyles.colors.primary,
-  },
   categoryButtonText: {
     fontSize: 12,
-    color: GlobalStyles.colors.textSecondary,
   },
   categoryButtonTextActive: {
     color: "white",
   },
   commentInput: {
     borderWidth: 1,
-    borderColor: GlobalStyles.colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
-    textAlignVertical: "top", // For multiline input
+    textAlignVertical: "top",
     minHeight: 100,
-    color: GlobalStyles.colors.textPrimary,
   },
   charCount: {
     textAlign: "right",
     fontSize: 12,
-    color: GlobalStyles.colors.textSecondary,
     marginTop: 4,
     marginBottom: 20,
   },
   reviewFormButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 24,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: GlobalStyles.colors.lightGray,
     paddingVertical: 12,
     borderRadius: 8,
     marginRight: 8,
     alignItems: "center",
   },
   cancelButtonText: {
-    color: GlobalStyles.colors.textSecondary,
     fontWeight: "600",
   },
   submitButton: {
     flex: 1,
-    backgroundColor: GlobalStyles.colors.success,
     paddingVertical: 12,
     borderRadius: 8,
     marginLeft: 8,
@@ -256,7 +387,6 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: "white",
-    fontWeight: "600",
   },
 });
 

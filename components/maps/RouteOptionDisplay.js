@@ -7,7 +7,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+<<<<<<< HEAD
 import { GlobalStyles } from "../../constants/GlobalStyles";
+=======
+import { useAppTheme } from "@/hooks/useAppTheme";
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
 import SafetyToggle from "./SafetyToggle"; // Import the new toggle component
 
 /**
@@ -36,12 +40,25 @@ const RouteOptionsDisplay = ({
   safeRouteOnly,
   onToggleSafeRouteOnly,
 }) => {
+<<<<<<< HEAD
+=======
+  const { colors: c, elevation: elev } = useAppTheme();
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
   if (!isVisible || routeOptions.length === 0) return null;
 
   const currentRoute = routeOptions[selectedRouteIndex];
 
   return (
+<<<<<<< HEAD
     <View style={styles.routeOptionsContainer}>
+=======
+    <View
+      style={[
+        styles.routeOptionsContainer,
+        { backgroundColor: c.surface, ...elev.sheet },
+      ]}
+    >
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
       {/* Safety Toggle */}
       <SafetyToggle
         safeRouteOnly={safeRouteOnly}
@@ -59,8 +76,19 @@ const RouteOptionsDisplay = ({
             key={route.id}
             style={[
               styles.routeOption,
+<<<<<<< HEAD
               index === selectedRouteIndex && styles.selectedRouteOption,
               { borderColor: route.color }, // Border color based on route safety
+=======
+              {
+                backgroundColor: c.backgroundLight,
+                borderColor: route.color,
+              },
+              index === selectedRouteIndex && {
+                backgroundColor: c.backgroundSelected,
+                borderColor: c.primary,
+              },
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
             ]}
             onPress={() => onSelectRoute(index)}
           >
@@ -68,7 +96,12 @@ const RouteOptionsDisplay = ({
               <Text
                 style={[
                   styles.routeOptionTime,
+<<<<<<< HEAD
                   index === selectedRouteIndex && styles.selectedRouteText,
+=======
+                  { color: c.textPrimary },
+                  index === selectedRouteIndex && { color: c.primary },
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
                 ]}
               >
                 {route.duration} min
@@ -77,6 +110,7 @@ const RouteOptionsDisplay = ({
                 style={[styles.safetyBadge, { backgroundColor: route.color }]}
               >
                 <Text style={styles.safetyBadgeText}>
+<<<<<<< HEAD
                   {route.safety?.overall === "dangerous"
                     ? "D"
                     : route.safety?.overall === "safe"
@@ -100,6 +134,44 @@ const RouteOptionsDisplay = ({
                 ? "Very Safe"
                 : "Unreviewed"}
             </Text>
+=======
+                  {Number.isFinite(route.safety?.score)
+                    ? Math.round(route.safety.score)
+                    : "–"}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.routeOptionTitle, { color: c.textPrimary }]}>
+              {route.title}
+            </Text>
+            <Text
+              style={[
+                styles.routeOptionDescription,
+                { color: c.textSecondary },
+              ]}
+            >
+              {route.distance.toFixed(1)} km
+            </Text>
+            <Text style={[styles.safetyInfo, { color: route.color }]}>
+              {Number.isFinite(route.safety?.score)
+                ? `Safety ${Math.round(route.safety.score)}`
+                : "Unreviewed"}
+            </Text>
+            <Text
+              style={[
+                styles.routeOptionDescription,
+                { color: c.textSecondary },
+              ]}
+            >
+              {route.safety?.crowd == null
+                ? "Crowd —"
+                : `Crowd ${Math.round(route.safety.crowd * 100)}`}
+              {" · "}
+              {route.safety?.lighting == null
+                ? "Light —"
+                : `Light ${Math.round(route.safety.lighting * 100)}`}
+            </Text>
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -108,7 +180,11 @@ const RouteOptionsDisplay = ({
       {currentRoute && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
+<<<<<<< HEAD
             style={styles.directionsButton}
+=======
+            style={[styles.directionsButton, { backgroundColor: c.secondary }]}
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
             onPress={onViewDirections}
           >
             <Text style={styles.directionsButtonText}>View Directions</Text>
@@ -129,7 +205,11 @@ const RouteOptionsDisplay = ({
       {/* NEW: Recalculate Route Button */}
       {onRecalculateRoute && (
         <TouchableOpacity
+<<<<<<< HEAD
           style={styles.recalculateButton}
+=======
+          style={[styles.recalculateButton, { backgroundColor: c.info }]}
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
           onPress={onRecalculateRoute}
         >
           <Text style={styles.recalculateButtonText}>Recalculate Route</Text>
@@ -145,6 +225,7 @@ const styles = StyleSheet.create({
     bottom: 70,
     left: 0,
     right: 0,
+<<<<<<< HEAD
     backgroundColor: "white",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
@@ -152,23 +233,36 @@ const styles = StyleSheet.create({
     paddingBottom: 30, // Extra padding for bottom safe area
     ...GlobalStyles.shadow,
     maxHeight: "40%", // Limit height
+=======
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    paddingBottom: 30,
+    maxHeight: "40%",
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
   },
   routeOptionsScrollContent: {
     paddingVertical: 10,
   },
   routeOption: {
+<<<<<<< HEAD
     backgroundColor: GlobalStyles.colors.backgroundLight,
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
     borderRadius: 12,
     padding: 12,
     marginRight: 12,
     minWidth: 150,
     borderWidth: 2,
+<<<<<<< HEAD
     borderColor: "transparent",
     ...GlobalStyles.shadowSmall,
   },
   selectedRouteOption: {
     backgroundColor: GlobalStyles.colors.backgroundSelected,
     borderColor: GlobalStyles.colors.primary, // Default selected border
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
   },
   routeOptionHeader: {
     flexDirection: "row",
@@ -191,20 +285,29 @@ const styles = StyleSheet.create({
   routeOptionTime: {
     fontSize: 18,
     fontWeight: "bold",
+<<<<<<< HEAD
     color: GlobalStyles.colors.textPrimary,
   },
   selectedRouteText: {
     color: GlobalStyles.colors.primary,
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
   },
   routeOptionTitle: {
     fontSize: 14,
     fontWeight: "500",
+<<<<<<< HEAD
     color: GlobalStyles.colors.textPrimary,
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
     marginTop: 2,
   },
   routeOptionDescription: {
     fontSize: 12,
+<<<<<<< HEAD
     color: GlobalStyles.colors.textSecondary,
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
     marginTop: 2,
   },
   safetyInfo: {
@@ -219,7 +322,10 @@ const styles = StyleSheet.create({
   },
   directionsButton: {
     flex: 1,
+<<<<<<< HEAD
     backgroundColor: GlobalStyles.colors.secondary,
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
     borderRadius: 24,
     paddingVertical: 12,
     alignItems: "center",
@@ -232,7 +338,10 @@ const styles = StyleSheet.create({
   },
   startNavigationButton: {
     flex: 1,
+<<<<<<< HEAD
     backgroundColor: GlobalStyles.colors.success, // Default green
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
     borderRadius: 24,
     paddingVertical: 12,
     alignItems: "center",
@@ -244,8 +353,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   recalculateButton: {
+<<<<<<< HEAD
     // NEW STYLE
     backgroundColor: GlobalStyles.colors.info, // Blue color
+=======
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
     borderRadius: 24,
     paddingVertical: 12,
     alignItems: "center",

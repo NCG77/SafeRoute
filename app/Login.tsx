@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useNavigation } from "@react-navigation/native";
 import { SplashScreen, useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
@@ -196,3 +197,11 @@ const styles = StyleSheet.create({
 });
 
 export default LoginScreen;
+=======
+import { AuthScreen } from "@/components/auth/AuthScreen";
+
+/** Login entry — same Auth screen, login mode. */
+export default function LoginScreen() {
+  return <AuthScreen initialMode="login" />;
+}
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3

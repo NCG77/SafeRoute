@@ -93,21 +93,46 @@ export default function HomeDashboard() {
 
   const loadContext = useCallback(async () => {
     const now = new Date();
-    const baseScore = calculateSafetyScore({
-      hour: now.getHours(),
-      dayOfWeek: now.getDay(),
-      communityRating: 3.8,
-      crowdDensity: 0.55,
-      streetLighting: now.getHours() >= 18 || now.getHours() < 6 ? 0.45 : 0.85,
-      visibilityKm: 8,
-      policeDistanceM: 900,
-      cctv: 0.4,
-      verifiedIncidents30d: 1,
-      historicalReports: 2,
-      xgbRisk: null,
-      xgbConfidence: null,
-    });
-    setScore(baseScore.score);
+    let usedLiveScore = false;
+
+    // Phase 5: prefer live safety_scores cell when signed in
+    try {
+      if (auth.currentUser) {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const { getSafetyScore } = await import("@/services/callables");
+        const live = await getSafetyScore({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          departAtMs: now.getTime(),
+        });
+        if (live.data?.score != null) {
+          setScore(live.data.score);
+          usedLiveScore = true;
+        }
+      }
+    } catch {
+      // fall through to local formula
+    }
+
+    if (!usedLiveScore) {
+      const baseScore = calculateSafetyScore({
+        hour: now.getHours(),
+        dayOfWeek: now.getDay(),
+        communityRating: 3.8,
+        crowdDensity: 0.55,
+        streetLighting: now.getHours() >= 18 || now.getHours() < 6 ? 0.45 : 0.85,
+        visibilityKm: 8,
+        policeDistanceM: 900,
+        cctv: 0.4,
+        verifiedIncidents30d: 1,
+        historicalReports: 2,
+        xgbRisk: null,
+        xgbConfidence: null,
+      });
+      setScore(baseScore.score);
+    }
 
     try {
       const { status } = await Location.getForegroundPermissionsAsync();

@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { submitCommunityReport } from "@/services/communityIntelligence";
 
 type Step = 1 | 2 | 3;
 
@@ -127,11 +129,41 @@ export default function CommunityReportScreen() {
   }, [applyCurrentLocation]);
 
   const submit = async () => {
-    if (!place) return;
+    if (!place || !category) return;
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setSubmitting(false);
-    setStep(3);
+    try {
+      const result = await submitCommunityReport({
+        latitude: place.coordinate.latitude,
+        longitude: place.coordinate.longitude,
+        category,
+        severity,
+        note: description,
+        anonymous,
+        photoPath: photoAttached ? "local://pending-photo" : null,
+        voicePath: voiceAttached ? "local://pending-voice" : null,
+      });
+      if (!result.ok) {
+        if (result.needsAuth) {
+          Alert.alert(
+            "Sign in required",
+            result.error,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Sign in",
+                onPress: () => router.push("/Login"),
+              },
+            ],
+          );
+        } else {
+          Alert.alert("Could not submit", result.error);
+        }
+        return;
+      }
+      setStep(3);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

@@ -77,11 +77,13 @@ const SafetyReviewForm = ({
   };
 
   return (
-    <ScrollView
-      style={styles.reviewForm}
-      keyboardShouldPersistTaps="handled"
-      nestedScrollEnabled
-    >
+    <View style={styles.formShell}>
+      <ScrollView
+        style={styles.reviewForm}
+        contentContainerStyle={styles.reviewFormContent}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+      >
       <View
         style={[
           styles.areaCard,
@@ -235,6 +237,7 @@ const SafetyReviewForm = ({
       <Text style={[styles.charCount, { color: c.textSecondary }]}>
         {comment.length}/500
       </Text>
+      </ScrollView>
 
       <View style={styles.reviewFormButtons}>
         <TouchableOpacity
@@ -252,13 +255,21 @@ const SafetyReviewForm = ({
           <Text style={styles.submitButtonText}>Submit Review</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  formShell: {
+    flex: 1,
+    minHeight: 0,
+  },
   reviewForm: {
+    flex: 1,
+  },
+  reviewFormContent: {
     padding: 20,
+    paddingBottom: 12,
   },
   areaCard: {
     flexDirection: "row",
@@ -366,7 +377,10 @@ const styles = StyleSheet.create({
   reviewFormButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+    gap: 0,
   },
   cancelButton: {
     flex: 1,

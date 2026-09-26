@@ -59,6 +59,14 @@ import {
   stopSafetyTracking,
 } from "@/services/safetyTracking";
 import {
+  ROUTE_KIND_COLORS,
+  ROUTE_KIND_LABELS,
+  fetchSafeRoutes,
+  polylineToNavSteps,
+} from "@/services/safeRouteApi";
+import { submitCommunityReport, ratingToSeverity } from "@/services/communityIntelligence";
+import { fetchNearbyCommunityReports } from "@/services/communityReports";
+import {
   mapsLink,
   notifyGuardianSms,
 } from "@/services/guardianAlerts";
@@ -107,6 +115,7 @@ interface RouteInfo extends RouteDraft {
   safety: any;
   color: string;
   title: string;
+  mode?: "safest" | "balanced" | "fastest";
 }
 
 const SafeMaps = () => {
@@ -230,11 +239,111 @@ const SafeMaps = () => {
 
   // --- Effects ---
 
+  /**
+   * Phase 5: load community reports for the heat map.
+   * Prefers Firestore reports near the user; falls back to Mumbai seed samples.
+   */
+  const loadSafetyData = useCallback(async (coords?: Coordinate | null) => {
+    const mumbaiSeed: SafetyReview[] = [
+      {
+        id: 1,
+        latitude: 19.1195,
+        longitude: 72.8465,
+        rating: 2,
+        comment: "Poor street lighting after 9pm",
+        category: "lighting",
+        timestamp: Date.now() - 86400000 * 2,
+        userId: "community",
+      },
+      {
+        id: 2,
+        latitude: 19.1188,
+        longitude: 72.8472,
+        rating: 1,
+        comment: "Verbal harassment near junction",
+        category: "harassment",
+        timestamp: Date.now() - 86400000 * 5,
+        userId: "community",
+      },
+      {
+        id: 3,
+        latitude: 19.0901,
+        longitude: 72.8368,
+        rating: 2,
+        comment: "Phone snatching reported",
+        category: "crime",
+        timestamp: Date.now() - 86400000 * 10,
+        userId: "community",
+      },
+      {
+        id: 4,
+        latitude: 19.0598,
+        longitude: 72.8292,
+        rating: 3,
+        comment: "Dim stretch near station approach",
+        category: "lighting",
+        timestamp: Date.now() - 86400000,
+        userId: "community",
+      },
+      {
+        id: 5,
+        latitude: 19.0175,
+        longitude: 72.8475,
+        rating: 2,
+        comment: "Unsafe after dark — multiple reports",
+        category: "crime",
+        timestamp: Date.now() - 86400000 * 3,
+        userId: "community",
+      },
+    ];
+
+    let reviews = mumbaiSeed;
+    if (coords) {
+      const remote = await fetchNearbyCommunityReports(
+        coords.latitude,
+        coords.longitude,
+      );
+      if (remote.length > 0) {
+        reviews = remote.map((r, i) => ({
+          id: i + 1,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          rating: r.rating,
+          comment: r.comment,
+          category: r.category,
+          timestamp: r.timestamp,
+          userId: r.userId,
+        }));
+      }
+    }
+
+    setSafetyReviews(reviews);
+    setDangerousAreas(
+      reviews
+        .filter((review) => review.rating <= 2)
+        .map((review) => ({
+          latitude: review.latitude,
+          longitude: review.longitude,
+          radius: 500,
+          severity: review.rating,
+        })),
+    );
+  }, []);
+
   // Initial location and safety data load on component mount
   useEffect(() => {
     getCurrentLocation();
-    loadSafetyData();
-  }, []);
+    void loadSafetyData(null);
+  }, [loadSafetyData]);
+
+  // Refresh community heat when GPS is ready
+  useEffect(() => {
+    if (!location) return;
+    void loadSafetyData({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    });
+  }, [location, loadSafetyData]);
 
   // Set initial map region when location is available
   useEffect(() => {
@@ -427,143 +536,6 @@ const SafeMaps = () => {
     }
   };
 
-  /**
-   * Loads mock safety review data. In a real application, this would fetch from a backend.
-   */
-  const loadSafetyData = () => {
-    const mockReviews: SafetyReview[] = [
-      // Safe Areas in Bhopal (Rating 4-5)
-      {
-        id: 1,
-        latitude: 23.2548, // Near Upper Lake (Bada Talab) - Boat Club area
-        longitude: 77.3995,
-        rating: 5,
-        comment:
-          "Well-lit and popular area for walks. Feels very safe due to crowds.",
-        category: "general",
-        timestamp: Date.now() - 86400000 * 5, // 5 days ago
-        userId: "bhopal_user1",
-      },
-      {
-        id: 2,
-        latitude: 23.2595, // Near DB City Mall / Zone-I
-        longitude: 77.4126,
-        rating: 4,
-        comment:
-          "Busy commercial hub with good security. Safe during day and evening.",
-        category: "security",
-        timestamp: Date.now() - 86400000 * 3, // 3 days ago
-        userId: "bhopal_user2",
-      },
-      {
-        id: 3,
-        latitude: 23.245, // Near New Market
-        longitude: 77.404,
-        rating: 4,
-        comment:
-          "Crowded market area, active police patrolling. Safe for shopping.",
-        category: "general",
-        timestamp: Date.now() - 86400000 * 7, // 7 days ago
-        userId: "bhopal_user3",
-      },
-      {
-        id: 4,
-        latitude: 23.27, // Near Van Vihar National Park entrance
-        longitude: 77.375,
-        rating: 5,
-        comment:
-          "Protected national park area. Very safe during operational hours. Good for nature walks.",
-        category: "security",
-        timestamp: Date.now() - 86400000 * 2, // 2 days ago
-        userId: "bhopal_user4",
-      },
-      {
-        id: 5,
-        latitude: 23.22, // Near Shahpura Lake
-        longitude: 77.435,
-        rating: 4,
-        comment:
-          "Nice lakeside area, well-maintained. Feels safe with families around.",
-        category: "general",
-        timestamp: Date.now() - 86400000 * 4, // 4 days ago
-        userId: "bhopal_user5",
-      },
-
-      // Caution Areas in Bhopal (Rating 3)
-      {
-        id: 6,
-        latitude: 23.235, // Near Habibganj Railway Station / ISBT area
-        longitude: 77.43,
-        rating: 3,
-        comment:
-          "Busy transport hub. Can be crowded and chaotic. Exercise caution at night.",
-        category: "crowd",
-        timestamp: Date.now() - 86400000 * 1, // 1 day ago
-        userId: "bhopal_user6",
-      },
-      {
-        id: 7,
-        latitude: 23.2681, // Ibrahimganj - based on your previous testing
-        longitude: 77.4049,
-        rating: 3,
-        comment:
-          "Narrow streets, some areas lack proper lighting. Mixed reviews.",
-        category: "lighting",
-        timestamp: Date.now() - 86400000 * 6, // 6 days ago
-        userId: "bhopal_user7",
-      },
-
-      // Dangerous Areas in Bhopal (Rating 1-2)
-      {
-        id: 8,
-        latitude: 23.265, // Example of a less populated street/alley (hypothetical)
-        longitude: 77.408,
-        rating: 2,
-        comment:
-          "Very poor lighting and often deserted after 9 PM. Felt unsafe walking alone.",
-        category: "lighting",
-        timestamp: Date.now() - 86400000 * 0.5, // 12 hours ago
-        userId: "bhopal_user8",
-      },
-      {
-        id: 9,
-        latitude: 23.24, // Another hypothetical isolated spot
-        longitude: 77.39,
-        rating: 1,
-        comment:
-          "Frequent reports of petty crime and harassment. Highly unsafe, avoid this route.",
-        category: "crime",
-        timestamp: Date.now() - 86400000 * 1.5, // 1.5 days ago
-        userId: "bhopal_user9",
-      },
-      {
-        id: 10,
-        latitude: 23.275, // Near a less maintained area (hypothetical)
-        longitude: 77.415,
-        rating: 2,
-        comment:
-          "Broken pavements and overgrown bushes make it feel unsafe, especially at night.",
-        category: "infrastructure",
-        timestamp: Date.now() - 86400000 * 2.5, // 2.5 days ago
-        userId: "bhopal_user10",
-      },
-    ];
-
-    setSafetyReviews(mockReviews);
-
-    // Identify dangerous areas from mock reviews
-    const dangerous = mockReviews
-      .filter((review) => review.rating <= 2)
-      .map((review) => ({
-        latitude: review.latitude,
-        longitude: review.longitude,
-        radius: 500, // Radius for dangerous area visualization
-        severity: review.rating,
-      }));
-
-    setDangerousAreas(dangerous);
-  };
-
   const safetyHeatCells = useMemo(
     () =>
       buildSafetyHeatLayer(
@@ -628,8 +600,8 @@ const SafeMaps = () => {
   );
 
   /**
-   * Submits a new safety review and updates the state.
-   * In a real app, this would send data to a backend.
+   * Submits a community safety review: updates local heat immediately,
+   * then persists via Firebase verifyReport (Phase 5).
    */
   const submitSafetyReview = useCallback(
     (
@@ -663,16 +635,39 @@ const SafeMaps = () => {
         setDangerousAreas((prev) => [...prev, newDangerousArea]);
       }
 
-      Alert.alert(
-        "Review submitted",
-        reviewPlaceLabel
-          ? `Thanks — your report for “${reviewPlaceLabel}” helps keep others safer.`
-          : "Thank you for helping keep our community safe!",
-      );
       setShowReviewModal(false);
       setReviewLocation(null);
       setReviewPlaceLabel(null);
       setReviewPlaceSubtitle(null);
+
+      void (async () => {
+        const result = await submitCommunityReport({
+          latitude,
+          longitude,
+          category,
+          severity: ratingToSeverity(rating),
+          note: comment,
+          anonymous: true,
+        });
+        if (result.ok) {
+          Alert.alert(
+            "Report submitted",
+            reviewPlaceLabel
+              ? `Thanks — your report for “${reviewPlaceLabel}” is being verified and will improve SafeRoute for others.`
+              : "Thank you — your report is being verified and helps keep the community safer.",
+          );
+        } else if (result.needsAuth) {
+          Alert.alert(
+            "Saved on this device",
+            "Sign in next time to share this report with the community network.",
+          );
+        } else {
+          Alert.alert(
+            "Saved locally",
+            `Could not reach the community server (${result.error}). Your review still updates this map session.`,
+          );
+        }
+      })();
     },
     [safetyReviews, reviewPlaceLabel],
   );
@@ -966,6 +961,77 @@ const SafeMaps = () => {
   );
 
   /**
+   * Phase 3: A* routes from local FastAPI (Safest / Balanced / Fastest).
+   * Returns null if the backend is unreachable.
+   */
+  const getSafeBackendRoutes = async (
+    origin: Coordinate,
+    destination: Coordinate,
+  ): Promise<RouteInfo[] | null> => {
+    try {
+      const data = await fetchSafeRoutes(origin, destination, "all");
+      if (!data?.routes?.length) return null;
+
+      const order = ["safest", "balanced", "fastest"] as const;
+      const sorted = [...data.routes].sort(
+        (a, b) =>
+          order.indexOf(a.type as (typeof order)[number]) -
+          order.indexOf(b.type as (typeof order)[number]),
+      );
+
+      return sorted.map((card) => {
+        const kind =
+          card.type === "safest" ||
+          card.type === "balanced" ||
+          card.type === "fastest"
+            ? card.type
+            : "balanced";
+        const coordinates = (card.polyline || []).map(([lat, lon]) => ({
+          latitude: lat,
+          longitude: lon,
+        }));
+        const distanceKm = (card.distance || 0) / 1000;
+        const duration = card.eta || 0;
+        return {
+          id: card.id || `safe-${kind}`,
+          mode: kind,
+          coordinates,
+          distance: distanceKm,
+          duration,
+          description: `${distanceKm.toFixed(2)} km • ${duration} min`,
+          directions: polylineToNavSteps(
+            coordinates,
+            card.distance || 0,
+            duration,
+          ),
+          safety: {
+            overall: legacySafetyLabel(
+              card.safety,
+              (card.confidence ?? 80) / 100,
+            ),
+            score: card.safety,
+            lighting:
+              card.explanation?.stats &&
+              typeof (card.explanation as any).stats?.lighting_pct === "number"
+                ? (card.explanation as any).stats.lighting_pct / 100
+                : null,
+            crowd: null,
+          },
+          color: ROUTE_KIND_COLORS[kind],
+          title: `${ROUTE_KIND_LABELS[kind]} Route`,
+          confidence: card.confidence ?? card.confidence_detail?.confidence,
+          reasons: card.reasons ?? card.explanation?.reasons,
+          confidence_detail: card.confidence_detail ?? card.explanation?.confidence,
+          explanation: card.explanation,
+        };
+      });
+    } catch (err) {
+      console.warn("SafeRoute API unavailable, falling back to Google:", err);
+      return null;
+    }
+  };
+
+  /**
    * Fetches multiple route options from Google Directions API, including alternatives
    * and routes avoiding certain features, then analyzes their safety.
    * @param {Coordinate} origin - {latitude, longitude}
@@ -1106,8 +1172,15 @@ const SafeMaps = () => {
         : null;
       const score = plan?.safetyScore ?? midpointScore?.score ?? 50;
       const confidence = midpointScore?.confidence ?? 0;
+      const mode =
+        plan?.mode === "safest" ||
+        plan?.mode === "balanced" ||
+        plan?.mode === "fastest"
+          ? plan.mode
+          : undefined;
       return {
         ...route,
+        mode,
         safety: {
           ...safetyAnalysis,
           overall: plan
@@ -1117,7 +1190,7 @@ const SafeMaps = () => {
           lighting: plan?.lighting ?? null,
           crowd: plan?.crowd ?? null,
         },
-        color: heatColor(score),
+        color: mode ? ROUTE_KIND_COLORS[mode] : heatColor(score),
         title:
           plan?.title ??
           (index === 0 ? "Primary Route" : `Alternative Route ${index + 1}`),
@@ -1134,7 +1207,21 @@ const SafeMaps = () => {
       return (b.safety?.score ?? 0) - (a.safety?.score ?? 0);
     });
 
-    return routesWithSafety;
+    return routesWithSafety.map((route, index) => {
+      const fallback: ("safest" | "balanced" | "fastest")[] = [
+        "safest",
+        "balanced",
+        "fastest",
+      ];
+      const mode = route.mode ?? fallback[index];
+      if (!mode) return route;
+      return {
+        ...route,
+        mode,
+        color: ROUTE_KIND_COLORS[mode],
+        title: route.title || `${ROUTE_KIND_LABELS[mode]} Route`,
+      };
+    });
   };
 
   /**
@@ -1176,13 +1263,14 @@ const SafeMaps = () => {
     }
 
     try {
-      const routes = await getMultipleGoogleRoutes(
-        {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        },
-        destinationCoord,
-      );
+      const origin = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      // Prefer Mumbai road-graph A* (Phase 3); fall back to Google + client planner
+      let routes =
+        (await getSafeBackendRoutes(origin, destinationCoord)) ||
+        (await getMultipleGoogleRoutes(origin, destinationCoord));
 
       if (!routes || routes.length === 0) {
         Alert.alert(
@@ -1194,7 +1282,9 @@ const SafeMaps = () => {
 
       setRouteOptions(routes);
 
-      let selectedRoute = routes[0]; // Default to the first (safest/shortest) route
+      let selectedRoute = routes[0];
+      const balanced = routes.find((r) => r.mode === "balanced");
+      if (balanced) selectedRoute = balanced;
 
       // If "safeRouteOnly" is enabled and the best route is dangerous, try to find an alternative.
       if (safeRouteOnly && selectedRoute.safety.overall === "dangerous") {
@@ -1821,6 +1911,16 @@ View on Map: https://www.google.com/maps/search/?api=1&query=${loc.coordinate.la
               ? liveNav.remainingCoordinates
               : routeCoordinates
           }
+          comparisonRoutes={
+            !isNavigationMode && routeOptions.length > 0
+              ? routeOptions.slice(0, 3).map((r) => ({
+                  id: r.id,
+                  coordinates: r.coordinates,
+                  color: r.color,
+                }))
+              : null
+          }
+          selectedComparisonIndex={selectedRouteIndex}
           traveledCoordinates={
             isNavigationMode ? liveNav?.traveledCoordinates : undefined
           }
@@ -1967,6 +2067,25 @@ View on Map: https://www.google.com/maps/search/?api=1&query=${loc.coordinate.la
             if (selectedLocation) {
               calculateAndShowRoutes(selectedLocation.coordinate, false);
             }
+          }}
+          onRefresh={() => {
+            if (selectedLocation) {
+              calculateAndShowRoutes(selectedLocation.coordinate, false);
+            }
+          }}
+          refreshing={isCalculatingRoute}
+          onDismiss={() => {
+            setSelectedLocation(null);
+            setRouteOptions([]);
+            setRouteCoordinates([]);
+            setRouteInfo(null);
+            setDirections([]);
+            setSelectedRouteIndex(0);
+            setSearchQuery("");
+            setShowSearchResults(false);
+            setNearbyPoliceStations([]);
+            setNearbyHospitals([]);
+            setNearestPlaceDetails(null);
           }}
           onStartNavigation={() => {
             // Stay on the map so the selected polyline + LiveNavigationHUD remain visible.

@@ -155,68 +155,76 @@ export function RouteComparison({
           })}
         </ScrollView>
 
-        {/* AI explanation panel */}
-        {selected ? (
-          <View
-            style={[
-              styles.whyCard,
-              {
-                backgroundColor: c.surfaceGlass,
-                borderColor: c.border,
-                ...elev.card,
-              },
-            ]}
-            accessibilityRole="summary"
-          >
-            <View style={styles.whyHeader}>
-              <View
-                style={[
-                  styles.aiBadge,
-                  { backgroundColor: c.primaryContainer },
-                ]}
-              >
-                <MaterialIcons
-                  name="auto-awesome"
-                  size={14}
-                  color={c.primary}
-                />
-                <Text style={[styles.aiBadgeText, { color: c.primary }]}>
-                  AI
-                </Text>
-              </View>
-              <Text style={[styles.whyTitle, { color: c.textPrimary }]}>
-                Why this route?
-              </Text>
-            </View>
-            {reasons.map((reason) => (
-              <View key={reason} style={styles.reasonRow}>
+        <ScrollView
+          style={styles.whyScroll}
+          contentContainerStyle={styles.whyScrollContent}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+        >
+          {selected ? (
+            <View
+              style={[
+                styles.whyCard,
+                {
+                  backgroundColor: c.surfaceGlass,
+                  borderColor: c.border,
+                  ...elev.card,
+                },
+              ]}
+              accessibilityRole="summary"
+            >
+              <View style={styles.whyHeader}>
                 <View
-                  style={[styles.reasonDot, { backgroundColor: c.success }]}
-                />
-                <Text style={[styles.reasonText, { color: c.charcoal }]}>
-                  {reason}
+                  style={[
+                    styles.aiBadge,
+                    { backgroundColor: c.primaryContainer },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="auto-awesome"
+                    size={14}
+                    color={c.primary}
+                  />
+                  <Text style={[styles.aiBadgeText, { color: c.primary }]}>
+                    AI
+                  </Text>
+                </View>
+                <Text style={[styles.whyTitle, { color: c.textPrimary }]}>
+                  Why this route?
                 </Text>
               </View>
-            ))}
-            {onViewDirections ? (
-              <Pressable
-                onPress={onViewDirections}
-                hitSlop={8}
-                accessibilityRole="button"
-                style={styles.directionsLink}
-              >
-                <Text style={[styles.directionsLinkText, { color: c.primary }]}>
-                  View turn-by-turn
-                </Text>
-                <MaterialIcons
-                  name="chevron-right"
-                  size={18}
-                  color={c.primary}
-                />
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
+              {reasons.map((reason) => (
+                <View key={reason} style={styles.reasonRow}>
+                  <View
+                    style={[styles.reasonDot, { backgroundColor: c.success }]}
+                  />
+                  <Text style={[styles.reasonText, { color: c.charcoal }]}>
+                    {reason}
+                  </Text>
+                </View>
+              ))}
+              {onViewDirections ? (
+                <Pressable
+                  onPress={onViewDirections}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  style={styles.directionsLink}
+                >
+                  <Text
+                    style={[styles.directionsLinkText, { color: c.primary }]}
+                  >
+                    View turn-by-turn
+                  </Text>
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={18}
+                    color={c.primary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+        </ScrollView>
 
         <PrimaryButton
           label="Start Safe Walk"
@@ -257,6 +265,7 @@ const styles = StyleSheet.create({
   dock: {
     paddingTop: spacing.md,
     gap: spacing.md,
+    maxHeight: "62%",
     // Transparent dock so map stays edge-to-edge; only cards cast elevation
     backgroundColor: "transparent",
   },
@@ -266,6 +275,14 @@ const styles = StyleSheet.create({
   },
   card: {
     marginRight: spacing.sm,
+  },
+  whyScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+    maxHeight: 180,
+  },
+  whyScrollContent: {
+    paddingBottom: spacing.xs,
   },
   whyCard: {
     marginHorizontal: spacing.md,

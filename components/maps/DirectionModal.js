@@ -58,7 +58,11 @@ const DirectionsModal = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.directionsScrollView}>
+          <ScrollView
+            style={styles.directionsScrollView}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            nestedScrollEnabled
+          >
             {routeInfo && (
               <View
                 style={[
@@ -137,6 +141,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     maxHeight: "80%",
     minHeight: "40%",
+    flexGrow: 1,
   },
   directionsHeader: {
     flexDirection: "row",
@@ -160,6 +165,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   directionsScrollView: {
+    flex: 1,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },

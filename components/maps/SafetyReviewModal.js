@@ -44,16 +44,18 @@ const SafetyReviewModal = ({
             </TouchableOpacity>
           </View>
 
-          <SafetyReviewForm
-            location={reviewLocation}
-            locationLabel={reviewPlaceLabel}
-            locationSubtitle={reviewPlaceSubtitle}
-            onLocationChange={onLocationChange}
-            onUseCurrentLocation={onUseCurrentLocation}
-            onSubmit={onSubmit}
-            onCancel={onClose}
-            showMapTip
-          />
+          <View style={styles.reviewFormSlot}>
+            <SafetyReviewForm
+              location={reviewLocation}
+              locationLabel={reviewPlaceLabel}
+              locationSubtitle={reviewPlaceSubtitle}
+              onLocationChange={onLocationChange}
+              onUseCurrentLocation={onUseCurrentLocation}
+              onSubmit={onSubmit}
+              onCancel={onClose}
+              showMapTip
+            />
+          </View>
         </View>
       </View>
     </Modal>
@@ -71,6 +73,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     maxHeight: "80%",
     minHeight: "60%",
+    flexGrow: 1,
   },
   reviewModalHeader: {
     flexDirection: "row",
@@ -78,6 +81,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
+  },
+  reviewFormSlot: {
+    flex: 1,
+    minHeight: 0,
   },
   reviewModalTitle: {
     fontSize: 18,

@@ -39,6 +39,7 @@ import {
   safeWalkCheckinFailedMessage,
 } from "@/services/guardianAlerts";
 import { fetchWalkingRoute } from "@/services/walkingRoute";
+import { fetchLiveReroute } from "@/services/safeRouteApi";
 import {
   publishSafetyLocation,
   stopSafetyTracking,
@@ -53,10 +54,12 @@ import { httpsCallable } from "firebase/functions";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -119,6 +122,9 @@ export default function SafeWalkLiveScreen() {
   const [remainingPath, setRemainingPath] = useState<LatLng[]>([]);
   const [traveledPath, setTraveledPath] = useState<LatLng[]>([]);
   const [errorHint, setErrorHint] = useState<string | null>(null);
+  const [routeSafety, setRouteSafety] = useState<number | null>(null);
+  const rerouteBusy = useRef(false);
+  const lastRerouteOfferAt = useRef(0);
 
   const sessionRef = useRef<SafeWalkSession>(initialSafeWalk());
   const routeRef = useRef<LatLng[]>([]);
@@ -478,6 +484,70 @@ export default function SafeWalkLiveScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Phase 6 — poll for safer remaining path when hazards appear ahead
+  useEffect(() => {
+    if (phase !== "active") return;
+    const tick = async () => {
+      if (rerouteBusy.current) return;
+      if (Date.now() - lastRerouteOfferAt.current < 90_000) return;
+      const pos = lastPosRef.current ?? userCoord;
+      rerouteBusy.current = true;
+      try {
+        const result = await fetchLiveReroute({
+          position: pos,
+          destination: dest,
+          mode: "safest",
+          currentPolyline: routeRef.current,
+          currentSafety: routeSafety ?? undefined,
+        });
+        if (!result.offer || !result.route?.polyline?.length) return;
+        lastRerouteOfferAt.current = Date.now();
+        const delta = result.safety_delta ?? 0;
+        Alert.alert(
+          result.message || "Safer route available",
+          result.detail ||
+            `A safer path is available${delta > 0 ? ` (+${delta} safety)` : ""}.`,
+          [
+            { text: "Keep current", style: "cancel" },
+            {
+              text: "Take safer route",
+              onPress: () => {
+                const coords = (result.route.polyline || []).map(
+                  ([lat, lon]) => ({
+                    latitude: lat,
+                    longitude: lon,
+                  }),
+                );
+                if (coords.length < 2) return;
+                routeRef.current = coords;
+                setRouteCoords(coords);
+                setRemainingPath(coords);
+                setRouteSafety(result.route.safety);
+                const km = (result.route.distance || 0) / 1000;
+                const mins = result.route.eta || etaMin;
+                totalDistanceRef.current = km;
+                totalDurationRef.current = mins;
+                setDistanceLeft(km);
+                setEtaMin(mins);
+                void Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+              },
+            },
+          ],
+        );
+      } catch {
+        /* API optional during walk */
+      } finally {
+        rerouteBusy.current = false;
+      }
+    };
+    const id = setInterval(() => {
+      void tick();
+    }, 45_000);
+    return () => clearInterval(id);
+  }, [phase, dest, userCoord, routeSafety, etaMin]);
+
   const applyNavSnapshot = (
     snapshot: LiveNavSnapshot,
     tripExtended = false,
@@ -820,46 +890,50 @@ export default function SafeWalkLiveScreen() {
         </View>
       </View>
 
-      <View style={styles.statsRow}>
-        <StatCard
-          label="ETA"
-          value={formatDurationMin(Math.ceil(etaMin))}
-          c={c}
-          elev={elev}
-        />
-        <StatCard
-          label="Remaining"
-          value={formatDistanceKm(distanceLeft)}
-          c={c}
-          elev={elev}
-        />
-        <StatCard
-          label="Progress"
-          value={`${Math.round(progress)}%`}
-          c={c}
-          elev={elev}
-          accent
-        />
-      </View>
-
-      <View
-        style={[styles.progressTrack, { backgroundColor: c.surfaceVariant }]}
+      <ScrollView
+        style={styles.midScroll}
+        contentContainerStyle={styles.midScrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <LinearGradient
-          colors={[...grads.primaryButton]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={[styles.progressFill, { width: `${Math.round(progress)}%` }]}
-        />
-      </View>
+        <View style={styles.statsRow}>
+          <StatCard
+            label="ETA"
+            value={formatDurationMin(Math.ceil(etaMin))}
+            c={c}
+            elev={elev}
+          />
+          <StatCard
+            label="Remaining"
+            value={formatDistanceKm(distanceLeft)}
+            c={c}
+            elev={elev}
+          />
+          <StatCard
+            label="Progress"
+            value={`${Math.round(progress)}%`}
+            c={c}
+            elev={elev}
+            accent
+          />
+        </View>
 
-      <Text style={[styles.extendHint, { color: c.textTertiary }]}>
-        {extended
-          ? "Trip extended · ETA updated"
-          : "Live GPS · progress updates as you walk"}
-      </Text>
+        <View
+          style={[styles.progressTrack, { backgroundColor: c.surfaceVariant }]}
+        >
+          <LinearGradient
+            colors={[...grads.primaryButton]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={[styles.progressFill, { width: `${Math.round(progress)}%` }]}
+          />
+        </View>
 
-      <View style={styles.spacer} />
+        <Text style={[styles.extendHint, { color: c.textTertiary }]}>
+          {extended
+            ? "Trip extended · ETA updated"
+            : "Live GPS · progress updates as you walk"}
+        </Text>
+      </ScrollView>
 
       <View style={styles.actions}>
         <PrimaryButton label="End Safe Walk" onPress={() => void endWalk()} />
@@ -1145,6 +1219,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   spacer: { flex: 1 },
+  midScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  midScrollContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.sm,
+  },
   actions: { gap: spacing.sm },
   sosFab: {
     position: "absolute",

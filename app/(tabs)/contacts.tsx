@@ -434,6 +434,7 @@ export default function GuardiansScreen() {
         }}
         title="Invite Guardian"
         heightRatio={0.72}
+        scrollable={false}
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"

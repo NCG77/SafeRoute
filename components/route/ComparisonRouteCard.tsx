@@ -41,6 +41,16 @@ export type ComparisonRoute = {
   crowdLabel?: string;
 
   color?: string;
+
+  /** Phase 6 explainable AI */
+
+  confidence?: number | null;
+
+  reasons?: { icon: string; text: string }[];
+
+  lowConfidenceAdvisory?: string | null;
+
+  etaDeltaVsFastestMin?: number | null;
 };
 
 export type ComparisonRouteCardProps = {
@@ -151,6 +161,15 @@ export function ComparisonRouteCard({
             </Text>
           </Text>
 
+          {route.confidence != null ? (
+            <Text style={[styles.metric, { color: c.textSecondary }]}>
+              Confidence{" "}
+              <Text style={[styles.metricStrong, { color: c.charcoal }]}>
+                {Math.round(route.confidence)}%
+              </Text>
+            </Text>
+          ) : null}
+
           {route.lightingScore != null ? (
             <Text style={[styles.metric, { color: c.textSecondary }]}>
               Lighting{" "}
@@ -166,6 +185,13 @@ export function ComparisonRouteCard({
               <Text style={[styles.metricStrong, { color: c.charcoal }]}>
                 {crowd}
               </Text>
+            </Text>
+          ) : null}
+
+          {route.etaDeltaVsFastestMin != null &&
+          route.etaDeltaVsFastestMin > 0.5 ? (
+            <Text style={[styles.metric, { color: c.textTertiary }]}>
+              +{Math.round(route.etaDeltaVsFastestMin)} min vs fastest
             </Text>
           ) : null}
         </View>

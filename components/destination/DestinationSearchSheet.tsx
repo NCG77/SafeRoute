@@ -309,6 +309,7 @@ export function DestinationSearchSheet({
       onClose={onClose}
       title="Where to?"
       heightRatio={0.92}
+      scrollable={false}
     >
       <KeyboardAvoidingView
         style={styles.flex}

@@ -483,6 +483,22 @@ export default function SafeWalkScreen() {
         onClose={() => setTripDraft(null)}
         title="Confirm destination"
         heightRatio={0.52}
+        footer={
+          tripDraft ? (
+            <>
+              <PrimaryButton label="Continue" onPress={continueFromTrip} />
+              {eligibility?.status === "warn" ? (
+                <SecondaryButton
+                  label="Use Safe Route instead"
+                  onPress={() => {
+                    setTripDraft(null);
+                    router.push("/(tabs)/navigate" as never);
+                  }}
+                />
+              ) : null}
+            </>
+          ) : null
+        }
       >
         {tripDraft ? (
           <View style={styles.sheetBody}>
@@ -518,19 +534,6 @@ export default function SafeWalkScreen() {
                 </Text>
               </View>
             ) : null}
-
-            <View style={styles.sheetActions}>
-              <PrimaryButton label="Continue" onPress={continueFromTrip} />
-              {eligibility?.status === "warn" ? (
-                <SecondaryButton
-                  label="Use Safe Route instead"
-                  onPress={() => {
-                    setTripDraft(null);
-                    router.push("/(tabs)/navigate" as never);
-                  }}
-                />
-              ) : null}
-            </View>
           </View>
         ) : null}
       </ModalBottomSheet>
@@ -703,7 +706,6 @@ const styles = StyleSheet.create({
   },
   sheetBody: {
     gap: spacing.md,
-    paddingBottom: spacing.lg,
   },
   tripRoute: {
     fontFamily: typography.fontFamily.semibold,
@@ -731,9 +733,5 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.regular,
     fontSize: typography.size.caption,
     lineHeight: typography.lineHeight.caption,
-  },
-  sheetActions: {
-    gap: spacing.sm,
-    marginTop: spacing.sm,
   },
 });

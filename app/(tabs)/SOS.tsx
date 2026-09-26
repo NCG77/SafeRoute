@@ -8,6 +8,7 @@ import {
   AccessibilityInfo,
   Alert,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -464,71 +465,78 @@ export default function SosScreen() {
         </Pressable>
       ) : null}
 
-      {phase === "active" ? (
-        <View style={styles.statusList}>
-          {statusRows.map((row) => (
-            <View key={row.id} style={styles.statusRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.statusLabel}>{row.label}</Text>
-                <Text style={styles.statusDetail}>{row.detail}</Text>
+      <ScrollView
+        style={styles.lowerScroll}
+        contentContainerStyle={styles.lowerScrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {phase === "active" ? (
+          <View style={styles.statusList}>
+            {statusRows.map((row) => (
+              <View key={row.id} style={styles.statusRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusLabel}>{row.label}</Text>
+                  <Text style={styles.statusDetail}>{row.detail}</Text>
+                </View>
+                <Text
+                  style={[
+                    styles.statusOn,
+                    { color: c.success },
+                    !row.on && { color: c.warning },
+                  ]}
+                >
+                  {row.on ? "On" : "…"}
+                </Text>
               </View>
-              <Text
-                style={[
-                  styles.statusOn,
-                  { color: c.success },
-                  !row.on && { color: c.warning },
-                ]}
-              >
-                {row.on ? "On" : "…"}
-              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {phase === "idle" || phase === "cancelled" ? (
+          <View style={styles.toggles}>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Silent mode</Text>
+              <Switch
+                value={session.silent}
+                onValueChange={() => {
+                  setSession((c) => {
+                    const next = reduceSos(c, { type: "TOGGLE_SILENT" });
+                    void AsyncStorage.setItem(
+                      SILENT_SOS_KEY,
+                      next.silent ? "true" : "false",
+                    );
+                    return next;
+                  });
+                }}
+                trackColor={{ false: "#374151", true: c.dangerContainer }}
+                thumbColor={session.silent ? c.danger : "#F9FAFB"}
+              />
             </View>
-          ))}
-        </View>
-      ) : null}
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Siren vibration</Text>
+              <Switch
+                value={session.siren}
+                disabled={session.silent}
+                onValueChange={() =>
+                  setSession((c) => reduceSos(c, { type: "TOGGLE_SIREN" }))
+                }
+                trackColor={{ false: "#374151", true: c.primaryContainer }}
+                thumbColor={session.siren ? c.primary : "#F9FAFB"}
+              />
+            </View>
+            <Text style={styles.hint}>
+              Press and hold for 2 seconds. A 5-second cancel window follows.
+            </Text>
+          </View>
+        ) : null}
 
-      {phase === "idle" || phase === "cancelled" ? (
-        <View style={styles.toggles}>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Silent mode</Text>
-            <Switch
-              value={session.silent}
-              onValueChange={() => {
-                setSession((c) => {
-                  const next = reduceSos(c, { type: "TOGGLE_SILENT" });
-                  void AsyncStorage.setItem(
-                    SILENT_SOS_KEY,
-                    next.silent ? "true" : "false",
-                  );
-                  return next;
-                });
-              }}
-              trackColor={{ false: "#374151", true: c.dangerContainer }}
-              thumbColor={session.silent ? c.danger : "#F9FAFB"}
-            />
-          </View>
-          <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Siren vibration</Text>
-            <Switch
-              value={session.siren}
-              disabled={session.silent}
-              onValueChange={() =>
-                setSession((c) => reduceSos(c, { type: "TOGGLE_SIREN" }))
-              }
-              trackColor={{ false: "#374151", true: c.primaryContainer }}
-              thumbColor={session.siren ? c.primary : "#F9FAFB"}
-            />
-          </View>
+        {phase === "holding" ? (
           <Text style={styles.hint}>
-            Press and hold for 2 seconds. A 5-second cancel window follows.
+            {Math.round(holdProgress * 2 * 10) / 10}s · release now to cancel
           </Text>
-        </View>
-      ) : null}
-
-      {phase === "holding" ? (
-        <Text style={styles.hint}>
-          {Math.round(holdProgress * 2 * 10) / 10}s · release now to cancel
-        </Text>
-      ) : null}
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
@@ -624,6 +632,16 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.semibold,
     fontSize: typography.size.bodyLarge,
     color: "#F3F4F6",
+  },
+  lowerScroll: {
+    flex: 1,
+    minHeight: 0,
+    alignSelf: "stretch",
+    width: "100%",
+  },
+  lowerScrollContent: {
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
   },
   statusList: {
     width: "100%",

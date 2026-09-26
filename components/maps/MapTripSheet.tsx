@@ -5,6 +5,7 @@ import {
   ComparisonRouteCard,
   type ComparisonRoute,
 } from "@/components/route/ComparisonRouteCard";
+import { WhyThisRoute } from "@/components/route/WhyThisRoute";
 import {
   radius,
   spacing,
@@ -12,7 +13,8 @@ import {
   typography,
 } from "@/constants/theme";
 import { useAppTheme } from "@/hooks/useAppTheme";
-import React, { useEffect, useRef } from "react";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   Dimensions,
@@ -28,10 +30,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const { height: WINDOW_HEIGHT } = Dimensions.get("window");
 /** Idle "Plan a trip" — title + subtitle only, no empty padding. */
 const IDLE = 138;
-/** Destination selected — copy + CTA + Save/Share. */
-const DESTINATION = 210;
-/** Route cards visible. */
-const EXPANDED = Math.min(420, Math.round(WINDOW_HEIGHT * 0.48));
+/** Destination selected — copy + CTA + Save/Share (must fit without clipping). */
+const DESTINATION = 300;
+/**
+ * Routes collapsed: destination + cards + Start Navigation always visible.
+ * Why-panel scrolls when sheet is pulled up.
+ */
+const ROUTES_COLLAPSED = 300;
+/** Route cards + why panel + sticky CTA. */
+const EXPANDED = Math.min(560, Math.round(WINDOW_HEIGHT * 0.62));
 /** Extra gap so the floating tab bar never covers the sheet CTA. */
 const TAB_CLEARANCE = spacing.md;
 
@@ -42,6 +49,7 @@ export type MapTripSheetProps = {
   routes: ComparisonRoute[];
   selectedIndex: number;
   safetyScore?: number | null;
+  refreshing?: boolean;
   onSelectRoute: (index: number) => void;
   onFindRoutes?: () => void;
   onStartNavigation?: () => void;
@@ -49,6 +57,10 @@ export type MapTripSheetProps = {
   onShare?: () => void;
   onMyLocation?: () => void;
   onReport?: () => void;
+  /** Recalculate routes for the current destination. */
+  onRefresh?: () => void;
+  /** Dismiss destination + route cards so the user can search again. */
+  onDismiss?: () => void;
 };
 
 export function MapTripSheet({
@@ -58,6 +70,7 @@ export function MapTripSheet({
   routes,
   selectedIndex,
   safetyScore,
+  refreshing = false,
   onSelectRoute,
   onFindRoutes,
   onStartNavigation,
@@ -65,17 +78,31 @@ export function MapTripSheet({
   onShare,
   onMyLocation,
   onReport,
+  onRefresh,
+  onDismiss,
 }: MapTripSheetProps) {
   const insets = useSafeAreaInsets();
   const { colors: c, elevation: elev } = useAppTheme();
   const hasRoutes = routes.length > 0;
   const hasDestination = Boolean(destinationTitle);
+  const selected = routes[selectedIndex] ?? routes[0];
+  const whyReasons = useMemo(() => {
+    const raw = selected?.reasons;
+    if (!raw?.length) return [];
+    return raw.map((r) => ({
+      icon: (r.icon || "check-circle") as React.ComponentProps<
+        typeof MaterialIcons
+      >["name"],
+      text: r.text,
+    }));
+  }, [selected?.reasons]);
+
   const targetHeight = hasRoutes
     ? EXPANDED
     : hasDestination
       ? DESTINATION
       : IDLE;
-  const minHeight = hasRoutes ? DESTINATION : targetHeight;
+  const minHeight = hasRoutes ? ROUTES_COLLAPSED : targetHeight;
   const maxHeight = hasRoutes ? EXPANDED : targetHeight;
   const height = useRef(new Animated.Value(IDLE)).current;
   const heightRef = useRef(IDLE);
@@ -84,6 +111,8 @@ export function MapTripSheet({
   hasRoutesRef.current = hasRoutes;
   const targetHeightRef = useRef(targetHeight);
   targetHeightRef.current = targetHeight;
+  const minHeightRef = useRef(minHeight);
+  minHeightRef.current = minHeight;
 
   useEffect(() => {
     const id = height.addListener(({ value }) => {
@@ -116,7 +145,9 @@ export function MapTripSheet({
       onPanResponderMove: (_, gesture) => {
         if (!hasRoutesRef.current) return;
         const next = dragStart.current - gesture.dy;
-        height.setValue(Math.min(EXPANDED, Math.max(DESTINATION, next)));
+        height.setValue(
+          Math.min(EXPANDED, Math.max(minHeightRef.current, next)),
+        );
       },
       onPanResponderRelease: (_, gesture) => {
         if (!hasRoutesRef.current) {
@@ -124,12 +155,11 @@ export function MapTripSheet({
           return;
         }
         const current = heightRef.current;
+        const collapsed = minHeightRef.current;
         if (gesture.vy < -0.35 || gesture.dy < -28) snapTo(EXPANDED);
-        else if (gesture.vy > 0.35 || gesture.dy > 28) snapTo(DESTINATION);
+        else if (gesture.vy > 0.35 || gesture.dy > 28) snapTo(collapsed);
         else
-          snapTo(
-            current > (DESTINATION + EXPANDED) / 2 ? EXPANDED : DESTINATION,
-          );
+          snapTo(current > (collapsed + EXPANDED) / 2 ? EXPANDED : collapsed);
       },
     }),
   ).current;
@@ -176,10 +206,53 @@ export function MapTripSheet({
           <View style={[styles.handle, { backgroundColor: c.border }]} />
         </View>
 
-        <View style={styles.body}>
-          <Text style={[styles.kicker, { color: c.primary }]}>
-            {hasDestination ? "Destination" : "Plan a trip"}
-          </Text>
+        {/* Header — always visible */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <Text style={[styles.kicker, { color: c.primary, flex: 1 }]}>
+              {hasDestination ? "Destination" : "Plan a trip"}
+            </Text>
+            {hasDestination || hasRoutes ? (
+              <View style={styles.headerActions}>
+                {onRefresh && hasRoutes ? (
+                  <Pressable
+                    onPress={onRefresh}
+                    disabled={refreshing}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Recalculate routes"
+                    style={[
+                      styles.iconBtn,
+                      {
+                        backgroundColor: c.surfaceVariant,
+                        opacity: refreshing ? 0.5 : 1,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="refresh"
+                      size={18}
+                      color={c.textPrimary}
+                    />
+                  </Pressable>
+                ) : null}
+                {onDismiss ? (
+                  <Pressable
+                    onPress={onDismiss}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close destination"
+                    style={[
+                      styles.iconBtn,
+                      { backgroundColor: c.surfaceVariant },
+                    ]}
+                  >
+                    <MaterialIcons name="close" size={18} color={c.textPrimary} />
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
           <Text
             style={[styles.title, { color: c.textPrimary }]}
             numberOfLines={1}
@@ -220,7 +293,53 @@ export function MapTripSheet({
               ))}
             </ScrollView>
           ) : null}
+        </View>
 
+        {/* Why / advisory — scrolls; never covers Start Navigation */}
+        {hasRoutes ? (
+          <ScrollView
+            style={styles.scrollMid}
+            contentContainerStyle={styles.scrollMidContent}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+          >
+            {whyReasons.length > 0 ? (
+              <WhyThisRoute
+                title="Why we recommended it"
+                reasons={whyReasons}
+                style={styles.why}
+              />
+            ) : null}
+
+            {selected?.lowConfidenceAdvisory ? (
+              <View
+                style={[
+                  styles.advisory,
+                  {
+                    backgroundColor: c.warningContainer || c.surface,
+                    borderColor: c.border,
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="info-outline"
+                  size={16}
+                  color={c.warning}
+                />
+                <Text
+                  style={[styles.advisoryText, { color: c.textSecondary }]}
+                >
+                  {selected.lowConfidenceAdvisory}
+                </Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        ) : (
+          <View style={styles.destSpacer} />
+        )}
+
+        {/* Footer — Start Navigation / Find safe routes pinned above the tab bar */}
+        <View style={styles.footer}>
           {hasRoutes && onStartNavigation ? (
             <PrimaryButton
               label="Start Navigation"
@@ -293,10 +412,46 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: radius.pill,
   },
-  body: {
+  header: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
+  },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scrollMid: {
+    flex: 1,
+    minHeight: 0,
+  },
+  destSpacer: {
+    flex: 1,
+    minHeight: spacing.sm,
+  },
+  scrollMidContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
-    gap: spacing.xs,
+    gap: spacing.sm,
+  },
+  footer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
   },
   kicker: {
     fontFamily: typography.fontFamily.semibold,
@@ -331,13 +486,33 @@ const styles = StyleSheet.create({
   routeCard: {
     marginRight: spacing.sm,
   },
+  why: {
+    marginTop: spacing.xs,
+  },
+  advisory: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  advisoryText: {
+    flex: 1,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    lineHeight: typography.lineHeight.caption,
+  },
   actions: {
     flexDirection: "row",
     gap: spacing.md,
+    minHeight: 40,
+    alignItems: "center",
   },
   action: {
-    minHeight: 36,
+    minHeight: 40,
     justifyContent: "center",
+    paddingVertical: spacing.xs,
   },
   actionText: {
     fontFamily: typography.fontFamily.semibold,

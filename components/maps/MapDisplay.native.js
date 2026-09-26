@@ -33,6 +33,9 @@ const MapDisplay = ({
   routeKey,
   routeColor,
   routeStrokeWidth = 6,
+  /** Optional Safest/Balanced/Fastest overlays (comparison mode). */
+  comparisonRoutes = null,
+  selectedComparisonIndex = 0,
   traveledCoordinates,
   onLongPress,
   onRegionChangeComplete,
@@ -182,7 +185,33 @@ const MapDisplay = ({
           />
         ) : null}
 
-        {ahead.length > 0 ? (
+        {/* Safest (green) / Balanced (blue) / Fastest (gray) — dim unselected */}
+        {!navigationMode &&
+        Array.isArray(comparisonRoutes) &&
+        comparisonRoutes.length > 0
+          ? comparisonRoutes.map((route, index) => {
+              const coords = route?.coordinates;
+              if (!Array.isArray(coords) || coords.length < 2) return null;
+              const selected = index === selectedComparisonIndex;
+              const color = route.color || routeColor;
+              return (
+                <Polyline
+                  key={`cmp-${route.id || index}-${selected ? "on" : "off"}`}
+                  coordinates={coords}
+                  strokeColor={selected ? color : `${color}55`}
+                  strokeWidth={selected ? Math.max(routeStrokeWidth, 7) : 4}
+                  zIndex={selected ? 3 : 2}
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              );
+            })
+          : null}
+
+        {(navigationMode ||
+          !Array.isArray(comparisonRoutes) ||
+          comparisonRoutes.length === 0) &&
+        ahead.length > 0 ? (
           <Polyline
             key={
               routeKey ||

@@ -80,6 +80,7 @@ export default ({ config }) => ({
   extra: {
     googleDirectionsApiKey: process.env.EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY,
     googlePlacesApiKey: process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY,
+    routingApiUrl: process.env.EXPO_PUBLIC_ROUTING_API_URL,
     eas: {
       projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
     },

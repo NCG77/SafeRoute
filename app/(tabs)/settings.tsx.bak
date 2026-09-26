@@ -1,0 +1,614 @@
+import { PrimaryButton, UserAvatar } from "@/components/design-system";
+import { auth } from "@/config/firebase";
+import { colors, elevation, radius, spacing, tabContentBottomInset, typography } from "@/constants/theme";
+import { useAppearance, type AppearanceMode } from "@/hooks/useAppearance";
+import {
+  calculateTrustScore,
+  reportWeightForLevel,
+  trustLevel,
+  type TrustLevel,
+} from "@/core/trust";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const LEVEL_LABEL: Record<TrustLevel, string> = {
+  untrusted: "Untrusted",
+  low: "Low",
+  standard: "Standard",
+  trusted: "Trusted",
+  guardian: "Guardian",
+};
+
+const LEVEL_NEXT: Record<TrustLevel, { label: string; at: number } | null> = {
+  untrusted: { label: "Low", at: 21 },
+  low: { label: "Standard", at: 41 },
+  standard: { label: "Trusted", at: 61 },
+  trusted: { label: "Guardian", at: 81 },
+  guardian: null,
+};
+
+const ACHIEVEMENTS = [
+  { id: "a1", title: "First report", hint: "Filed your first community report", state: "earned" as const },
+  { id: "a2", title: "Night walker", hint: "Completed 5 Safe Walks after 8 pm", state: "earned" as const },
+  { id: "a3", title: "Verified voice", hint: "2 reports confirmed accurate", state: "earned" as const },
+  { id: "a4", title: "Guardian ally", hint: "Reach Guardian trust level", state: "locked" as const },
+  { id: "a5", title: "Week streak", hint: "3 / 4 participation weeks", state: "progress" as const },
+  { id: "a6", title: "Safe hundred", hint: "Complete 100 Safe Walks", state: "locked" as const },
+];
+
+function TrustRing({ score }: { score: number }) {
+  const clamped = Math.min(100, Math.max(0, score));
+  return (
+    <View style={styles.ringWrap} accessibilityLabel={`Trust score ${score}`}>
+      <View style={styles.ringOuter}>
+        <View style={styles.ringInner}>
+          <Text style={styles.ringScore}>{clamped}</Text>
+          <Text style={styles.ringCaption}>Trust</Text>
+        </View>
+      </View>
+      <View style={styles.ringBarTrack}>
+        <View style={[styles.ringBarFill, { width: `${clamped}%` }]} />
+      </View>
+    </View>
+  );
+}
+
+function SettingRow({
+  title,
+  subtitle,
+  onPress,
+  trailing,
+  last = false,
+}: {
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+  trailing?: React.ReactNode;
+  last?: boolean;
+}) {
+  const content = (
+    <View style={[styles.settingRow, last && styles.settingRowLast]}>
+      <View style={styles.settingText}>
+        <Text style={styles.settingTitle}>{title}</Text>
+        {subtitle ? <Text style={styles.settingSub}>{subtitle}</Text> : null}
+      </View>
+      {trailing ?? (
+        <MaterialIcons name="chevron-right" size={22} color={colors.textTertiary} />
+      )}
+    </View>
+  );
+
+  if (!onPress) return content;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => pressed && styles.settingPressed}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
+const APPEARANCE_OPTIONS: { id: AppearanceMode; label: string }[] = [
+  { id: "system", label: "System" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+];
+
+export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { mode, setMode } = useAppearance();
+  const [silentSos, setSilentSos] = useState(false);
+
+  const user = auth.currentUser;
+  const displayName =
+    user?.displayName || user?.email?.split("@")[0] || "SafeRoute user";
+  const phone = user?.phoneNumber || "Add phone in account";
+
+  const trust = useMemo(
+    () =>
+      calculateTrustScore({
+        accurateReports: 2,
+        verifiedReports: 1,
+        participationWeeks: 3,
+        spamReports: 0,
+        fakeReports: 0,
+        locationMismatches: 0,
+        deletedReports: 0,
+      }),
+    [],
+  );
+
+  const level = trust.level;
+  const levelLabel = LEVEL_LABEL[level];
+  const next = LEVEL_NEXT[level];
+  const ptsToNext = next ? Math.max(0, next.at - trust.score) : 0;
+  const weight = reportWeightForLevel(level);
+
+  return (
+    <View style={[styles.root, { paddingTop: Math.max(insets.top, spacing.md) }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingBottom: tabContentBottomInset(insets.bottom) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerCard}>
+          <UserAvatar name={displayName} size={72} />
+          <View style={styles.headerMeta}>
+            <Text style={styles.screenKicker}>Profile</Text>
+            <Text style={styles.name} accessibilityRole="header">
+              {displayName}
+            </Text>
+            <Text style={styles.phone}>{phone}</Text>
+            <View style={styles.levelPill}>
+              <Text style={styles.levelPillText}>{levelLabel}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.trustCard}>
+          <TrustRing score={trust.score} />
+          <View style={styles.trustMeta}>
+            <View style={styles.trustMetaRow}>
+              <Text style={styles.trustMetaTitle}>Guardian level</Text>
+              <Text style={styles.trustMetaHint}>
+                {next ? `${ptsToNext} pts to ${next.label}` : "Top level"}
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View
+                style={[styles.progressFill, { width: `${trust.score}%` }]}
+              />
+            </View>
+            <Text style={styles.weightCaption}>
+              Report weight {weight.toFixed(weight % 1 ? 2 : 1)}× · accurate
+              reports raise score faster
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>47</Text>
+            <Text style={styles.statLabel}>Safe trips completed</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statLabel}>Reports contributed</Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Achievements</Text>
+          <Text style={styles.sectionHint}>
+            {ACHIEVEMENTS.filter((a) => a.state === "earned").length} earned
+          </Text>
+        </View>
+        <View style={styles.achievementGrid}>
+          {ACHIEVEMENTS.map((a) => (
+            <View
+              key={a.id}
+              style={[
+                styles.achievementTile,
+                a.state === "earned" && styles.achievementEarned,
+                a.state === "locked" && styles.achievementLocked,
+              ]}
+            >
+              <View style={styles.achievementTop}>
+                <Text style={styles.achievementTitle}>{a.title}</Text>
+                <Text
+                  style={[
+                    styles.achievementState,
+                    a.state === "earned" && { color: colors.success },
+                    a.state === "progress" && { color: colors.primary },
+                  ]}
+                >
+                  {a.state === "earned"
+                    ? "Earned"
+                    : a.state === "progress"
+                      ? "In progress"
+                      : "Locked"}
+                </Text>
+              </View>
+              <Text style={styles.achievementHint}>{a.hint}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.groupLabel}>Appearance</Text>
+        <View style={styles.groupCard}>
+          <Text style={styles.groupTitle}>Theme</Text>
+          <Text style={styles.groupSub}>Light, dark, or match the device</Text>
+          <View style={styles.appearanceRow}>
+            {APPEARANCE_OPTIONS.map((option) => {
+              const selected = mode === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => setMode(option.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={[styles.appearanceChip, selected && styles.appearanceChipOn]}
+                >
+                  <Text
+                    style={[
+                      styles.appearanceLabel,
+                      selected && styles.appearanceLabelOn,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <Text style={styles.groupLabel}>Safety</Text>
+        <View style={styles.groupCard}>
+          <SettingRow
+            title="Silent SOS"
+            subtitle="Alert guardians without a siren"
+            trailing={
+              <Switch
+                value={silentSos}
+                onValueChange={setSilentSos}
+                trackColor={{ false: colors.border, true: colors.dangerContainer }}
+                thumbColor={silentSos ? colors.danger : colors.surface}
+                accessibilityLabel="Silent SOS preference"
+              />
+            }
+          />
+          <SettingRow
+            title="Guardians"
+            subtitle="People who follow your walks"
+            onPress={() => router.push("/contacts")}
+          />
+          <SettingRow
+            title="Notifications"
+            onPress={() => router.push("/(tabs)/alerts" as never)}
+          />
+          <SettingRow
+            title="Open SOS"
+            subtitle="Hold to activate emergency"
+            last
+            onPress={() => router.push("/(tabs)/SOS" as never)}
+          />
+        </View>
+
+        <Text style={styles.groupLabel}>Account</Text>
+        <View style={styles.groupCard}>
+          <SettingRow
+            title="Privacy"
+            subtitle="Location sharing stays anonymous by default"
+            onPress={() => router.push("/contacts")}
+          />
+          <SettingRow title="About, license, and terms" last onPress={() => {}} />
+        </View>
+
+        <PrimaryButton
+          label="Report an area"
+          onPress={() => router.push("/CommunityReport" as never)}
+          style={{ marginTop: spacing.lg }}
+        />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scroll: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  headerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    ...elevation.card,
+  },
+  screenKicker: {
+    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.size.caption,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: colors.primary,
+  },
+  headerMeta: {
+    flex: 1,
+    gap: 4,
+  },
+  name: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.size.title,
+    color: colors.textPrimary,
+  },
+  phone: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.body,
+    color: colors.textSecondary,
+  },
+  levelPill: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.successContainer,
+  },
+  levelPillText: {
+    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.size.caption,
+    color: colors.success,
+  },
+  trustCard: {
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  ringWrap: {
+    alignSelf: "center",
+    alignItems: "center",
+    gap: spacing.sm,
+    width: "100%",
+  },
+  ringOuter: {
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    borderWidth: 10,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringInner: {
+    alignItems: "center",
+  },
+  ringBarTrack: {
+    width: "100%",
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  ringBarFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+  },
+  ringScore: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.size.display,
+    color: colors.textPrimary,
+  },
+  ringCaption: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.caption,
+    color: colors.textSecondary,
+  },
+  trustMeta: {
+    gap: spacing.sm,
+  },
+  trustMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  trustMetaTitle: {
+    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.size.bodyLarge,
+    color: colors.textPrimary,
+  },
+  trustMetaHint: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    color: colors.textSecondary,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+  },
+  weightCaption: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    color: colors.textTertiary,
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
+  },
+  statValue: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.size.headline,
+    color: colors.textPrimary,
+  },
+  statLabel: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    color: colors.textSecondary,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  sectionTitle: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.size.title,
+    color: colors.textPrimary,
+  },
+  sectionHint: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    color: colors.textTertiary,
+  },
+  achievementGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  achievementTile: {
+    width: "48%",
+    flexGrow: 1,
+    minWidth: "46%",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.sm + 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+    minHeight: 88,
+  },
+  achievementEarned: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
+  },
+  achievementLocked: {
+    opacity: 0.55,
+  },
+  achievementTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 4,
+  },
+  achievementTitle: {
+    flex: 1,
+    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.size.caption,
+    color: colors.textPrimary,
+  },
+  achievementState: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: 10,
+    color: colors.textTertiary,
+  },
+  achievementHint: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    color: colors.textSecondary,
+  },
+  groupLabel: {
+    marginTop: spacing.md,
+    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.size.caption,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: colors.textTertiary,
+  },
+  groupCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    ...elevation.card,
+  },
+  groupTitle: {
+    marginTop: spacing.md,
+    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.size.body,
+    color: colors.textPrimary,
+  },
+  groupSub: {
+    marginTop: 2,
+    marginBottom: spacing.sm,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    color: colors.textSecondary,
+  },
+  appearanceRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  appearanceChip: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceVariant,
+  },
+  appearanceChipOn: {
+    backgroundColor: colors.primary,
+  },
+  appearanceLabel: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.size.body,
+    color: colors.textSecondary,
+  },
+  appearanceLabelOn: {
+    fontFamily: typography.fontFamily.semibold,
+    color: colors.textOnPrimary,
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
+    gap: spacing.md,
+  },
+  settingRowLast: {
+    borderBottomWidth: 0,
+  },
+  settingPressed: {
+    opacity: 0.7,
+  },
+  settingText: {
+    flex: 1,
+    gap: 2,
+  },
+  settingTitle: {
+    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.size.bodyLarge,
+    color: colors.textPrimary,
+  },
+  settingSub: {
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.size.caption,
+    color: colors.textSecondary,
+  },
+});

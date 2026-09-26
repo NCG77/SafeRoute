@@ -1,0 +1,36 @@
+{
+  "n_samples": 57077,
+  "n_train": 45661,
+  "n_test": 11416,
+  "features": [
+    "lighting_score",
+    "police_dist",
+    "crime_score",
+    "hospital_dist"
+  ],
+  "target": "safety_score",
+  "model": {
+    "type": "XGBRegressor",
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "random_state": 42
+  },
+  "train": {
+    "mae": 0.17,
+    "rmse": 0.3919,
+    "r2": 0.999
+  },
+  "test": {
+    "mae": 0.1829,
+    "rmse": 0.4459,
+    "r2": 0.9987
+  },
+  "feature_importance": {
+    "lighting_score": 0.12675410509109497,
+    "police_dist": 0.2793808579444885,
+    "crime_score": 0.5835437178611755,
+    "hospital_dist": 0.010321349836885929
+  },
+  "trained_s": 0.84
+}

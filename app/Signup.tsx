@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
@@ -203,3 +204,11 @@ const styles = StyleSheet.create({
 });
 
 export default SignupScreen;
+=======
+import { AuthScreen } from "@/components/auth/AuthScreen";
+
+/** Sign up entry — same Auth screen, signup mode. */
+export default function SignupScreen() {
+  return <AuthScreen initialMode="signup" />;
+}
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3

@@ -38,14 +38,20 @@ const MapDisplay = ({
     if (onLongPress) {
       onLongPress({
         nativeEvent: {
+<<<<<<< HEAD
           coordinate: initialRegion || { latitude: 0, longitude: 0 }
         }
+=======
+          coordinate: initialRegion || { latitude: 0, longitude: 0 },
+        },
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
       });
     }
   };
 
   return (
     <View style={styles.mapContainer}>
+<<<<<<< HEAD
       <View 
         style={styles.webMapPlaceholder} 
         ref={webMapRef}
@@ -54,11 +60,20 @@ const MapDisplay = ({
         <Text style={styles.placeholderText}>
           🗺️ Web Map View
         </Text>
+=======
+      <View
+        style={styles.webMapPlaceholder}
+        ref={webMapRef}
+        onClick={handleWebMapClick}
+      >
+        <Text style={styles.placeholderText}>🗺️ Web Map View</Text>
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
         <Text style={styles.placeholderSubtext}>
           Interactive map features are optimized for mobile.
           {"\n"}
           For full functionality, please use the mobile app.
         </Text>
+<<<<<<< HEAD
         
         {initialRegion && (
           <Text style={styles.infoText}>
@@ -66,29 +81,52 @@ const MapDisplay = ({
           </Text>
         )}
         
+=======
+
+        {initialRegion && (
+          <Text style={styles.infoText}>
+            📍 Current Region: {initialRegion.latitude?.toFixed(4)},{" "}
+            {initialRegion.longitude?.toFixed(4)}
+          </Text>
+        )}
+
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
         {selectedLocation && (
           <Text style={styles.infoText}>
             🎯 Selected: {selectedLocation.title || "Unknown location"}
           </Text>
         )}
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
         {safetyReviews.length > 0 && (
           <Text style={styles.infoText}>
             🛡️ Safety Reviews: {safetyReviews.length}
           </Text>
         )}
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
         {dangerousAreas.length > 0 && (
           <Text style={styles.infoText}>
             ⚠️ Dangerous Areas: {dangerousAreas.length}
           </Text>
         )}
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
         {routeCoordinates.length > 0 && (
           <Text style={styles.infoText}>
             🛣️ Route Points: {routeCoordinates.length}
           </Text>
         )}
+<<<<<<< HEAD
         
         {(nearbyPoliceStations.length > 0 || nearbyHospitals.length > 0) && (
           <Text style={styles.infoText}>
@@ -96,6 +134,16 @@ const MapDisplay = ({
           </Text>
         )}
         
+=======
+
+        {(nearbyPoliceStations.length > 0 || nearbyHospitals.length > 0) && (
+          <Text style={styles.infoText}>
+            🚔 Police: {nearbyPoliceStations.length} | 🏥 Hospitals:{" "}
+            {nearbyHospitals.length}
+          </Text>
+        )}
+
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3
         {onMyLocationPress && (
           <TouchableOpacity
             style={styles.myLocationButton}
@@ -156,4 +204,8 @@ const styles = StyleSheet.create({
   },
 });
 
+<<<<<<< HEAD
 export default MapDisplay;
+=======
+export default MapDisplay;
+>>>>>>> 5e3d2c8612989772d6fb21c83de6a6b0116ec9c3

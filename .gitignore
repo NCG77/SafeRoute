@@ -37,3 +37,6 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+.env
+saferoute-758ad-firebase-adminsdk-fbsvc-a173ca1fb1.json

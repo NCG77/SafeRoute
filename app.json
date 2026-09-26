@@ -12,11 +12,21 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.saferoute.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -25,18 +35,28 @@
     },
     "plugins": [
       "expo-router",
+      "expo-location",
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#ffffff",
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "googleDirectionsApiKey": "$EXPO_PUBLIC_GOOGLE_DIRECTIONS_API_KEY",
+      "googlePlacesApiKey": "$EXPO_PUBLIC_GOOGLE_PLACES_API_KEY",
+      "router": {},
+      "eas": {
+        "projectId": "28b13e91-fecd-4240-808f-6bb7a56f083c"
+      }
     }
   }
 }
